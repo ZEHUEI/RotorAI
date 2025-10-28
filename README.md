@@ -31,7 +31,7 @@ It aims to assist engineers and maintenance teams by automating defect detection
 
 - **Python 3.x**
 - **TensorFlow / Keras** – Deep learning model  
-- **OpenCV** – Image and video processing  
+- **OpenCV/YOLO** – Image and video processing  
 - **Matplotlib / Plotly** – Visualization  
 - **Blender / Three.js (optional)** – 3D visualization  
 - **Jupyter Notebook / Streamlit** – Prototyping & UI  
