@@ -14,3 +14,7 @@ val_json = "Data/annotations/validation"
 
 
 #cross validation, train_test_split
+
+#get values matrix
+
+#export it for yolo to test
