@@ -1,0 +1,55 @@
+Camera frame
+     ↓
+YOLO detects object/surface → bounding box
+     ↓ crop bounding box
+Cropped frame → TensorFlow model
+     ↓
+Rust/crack detection
+     ↓ overlay results on original frame
+Display frame on screen
+
+
+Step-by-Step Workflow
+Phase 1 — TensorFlow Rust/Crack Detection
+
+Use your DACL10K COCO dataset (rust and cracks).
+
+Train a TensorFlow/Keras model to detect rust and cracks.
+
+Outputs can be bounding boxes or masks.
+
+Test the model on images to make sure it detects defects accurately.
+
+This is your primary defect detection model.
+
+(Optional) You can already overlay results on images or small video clips.
+
+Phase 2 — YOLO Motor Part Detection
+
+Collect a small dataset of motor images.
+
+Annotate the motor parts with bounding boxes.
+
+Train a YOLO model (e.g., YOLOv8) to detect motor parts in real time.
+
+This model is fast and meant for camera detection.
+
+Phase 3 — Real-Time Detection Pipeline
+
+Capture frames from the camera.
+
+Run YOLO → detect motor part → output bounding box.
+
+Crop the bounding box region from the frame.
+
+Pass the cropped region into TensorFlow model → detect rust/cracks.
+
+Overlay results (TensorFlow detection) back onto the full camera frame.
+
+Display in real time.
+
+Phase 4 — 3D Modelling (Later)
+
+Take the TensorFlow outputs (detected rust/cracks on motor parts)
+
+Feed into your 3D reconstruction pipeline.
