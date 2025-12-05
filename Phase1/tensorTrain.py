@@ -6,7 +6,9 @@ import os
 import numpy as np
 from pycocotools.coco import COCO
 from tensorflow.keras import layers, models
-
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+from tensorflow.keras.applications import ResNet50
+import segmentation_models as sm
 
 #COCO files
 train_img="../Data/images/train"
@@ -17,6 +19,7 @@ val_json = "../Data/annotations/validation"
 TARGET_SIZE = (512, 512)
 TARGET_LABELS = ["Crack", "Rust"]
 NUM_TARGET_CLASSES = len(TARGET_LABELS)
+base = ResNet50(weights='imagenet', include_top=False, input_shape=TARGET_SIZE + (3,))
 
 def rasterize_polygon_to_mask(json_data_str, target_labels, target_size):
     python_target_labels = [s.decode('utf-8') for s in target_labels.numpy()]
@@ -26,19 +29,32 @@ def rasterize_polygon_to_mask(json_data_str, target_labels, target_size):
 
     mask = np.zeros((H, W, len(target_labels)), dtype=np.uint8)
     label_to_channel = {label: i for i, label in enumerate(python_target_labels)}
-    for shape in data['shapes']:
-        label = shape['label']
+    try:
+        for shape in data['shapes']:
+            label = shape['label']
 
-        if label in label_to_channel:
-            channel_index = label_to_channel[label]
-            points = np.array(shape['points'], dtype=np.int32)
+            if label in label_to_channel:
+                channel_index = label_to_channel[label]
+                points = np.array(shape['points'], dtype=np.int32)
 
-            temp_mask = np.zeros((H, W), dtype=np.uint8)
+                temp_mask = np.zeros((H, W), dtype=np.uint8)
 
-            cv2.fillPoly(temp_mask, [points.reshape((-1, 1, 2))], color=1)
+                cv2.fillPoly(temp_mask, [points.reshape((-1, 1, 2))], color=1)
 
-            mask[:, :, channel_index] = np.maximum(mask[:, :, channel_index], temp_mask)
+                mask[:, :, channel_index] = np.maximum(mask[:, :, channel_index], temp_mask)
+#----------------------------------------------------------------------------------------------------------
+    except Exception as e:
+        print(f"CRITICAL RASTERIZATION ERROR in {data.get('imagePath', 'unknown_file')}: {e}")
+    # Return an empty mask if failure occurs
+        return np.zeros(python_target_size + (len(target_labels),), dtype=np.uint8)
 
+    # --- DEBUG: Check mask content before resizing ---
+    # total_mask_pixels = np.sum(mask > 0)
+    # if total_mask_pixels == 0 and len(data['shapes']) > 0:
+    #     print(f"DEBUG WARNING: {data.get('imagePath')} had {len(data['shapes'])} shapes but mask is empty!")
+    # else:
+    #     print(f"DEBUG: {data.get('imagePath')} rasterized {total_mask_pixels} pixels.")
+#----------------------------------------------------------------------------------------------------------
     resized_mask = cv2.resize(
         mask,
         (python_target_size[1], python_target_size[0]),  # cv2 uses (W, H)
@@ -46,12 +62,27 @@ def rasterize_polygon_to_mask(json_data_str, target_labels, target_size):
     )
     return resized_mask
 
+def dice_loss(y_true, y_pred, smooth=1):
+    y_true_f = tf.reshape(y_true, [-1])
+    y_pred_f = tf.reshape(y_pred, [-1])
+    intersection = tf.reduce_sum(y_true_f * y_pred_f)
+    return 1 - (2. * intersection + smooth) / (tf.reduce_sum(y_true_f) + tf.reduce_sum(y_pred_f) + smooth)
+
+def bce_dice_loss(y_true, y_pred):
+    return tf.keras.losses.binary_crossentropy(y_true, y_pred) + dice_loss(y_true, y_pred)
+
+augment = tf.keras.Sequential([
+    layers.RandomFlip("horizontal"),
+    layers.RandomFlip("vertical"),
+    layers.RandomRotation(0.1),
+    layers.RandomContrast(0.2),
+    layers.RandomBrightness(0.1),
+])
 
 def map_func(image_path, json_data_str):
     img = tf.io.read_file(image_path)
     img = tf.image.decode_jpeg(img, channels=3)
     img = tf.image.resize(img, TARGET_SIZE)
-    img = img / 255.0
 
     mask_tensor = tf.py_function(
         rasterize_polygon_to_mask,
@@ -62,7 +93,14 @@ def map_func(image_path, json_data_str):
     mask_tensor.set_shape([TARGET_SIZE[0], TARGET_SIZE[1], NUM_TARGET_CLASSES])
     mask_tensor = tf.cast(mask_tensor, tf.float32)
 
-    return img, mask_tensor
+    stacked_img_mask = tf.concat([img, mask_tensor], axis=-1)
+    augmented_stack = augment(stacked_img_mask)
+
+    augmented_img = augmented_stack[:, :, :3]
+    augmented_mask = augmented_stack[:, :, 3:]
+    augmented_img = augmented_img / 255
+
+    return augmented_img, augmented_mask
 
 def collect_data_paths(img_dir, json_dir):
     image_paths = []
@@ -140,17 +178,39 @@ def unet_model(input_size=TARGET_SIZE + (3,), num_classes=NUM_TARGET_CLASSES):
     return model
 
 model = unet_model()
+model.compile(optimizer='adam',loss=bce_dice_loss,metrics=['accuracy',tf.keras.metrics.MeanIoU(num_classes=NUM_TARGET_CLASSES)])
 
-model.compile(optimizer='adam',loss='binary_crossentropy',metrics=['accuracy',tf.keras.metrics.MeanIoU(num_classes=NUM_TARGET_CLASSES)])
+EPOCHS =100
 
-EPOCHS =20
+#--validation usage---------------------------------------------------------------------------------------
+print("Collecting validation data paths and JSON content...")
+val_image_paths, val_json_data_strings = collect_data_paths(val_img, val_json)
+print(f"Found {len(val_image_paths)} image-JSON pairs for validation.")
+
+val_dataset = tf.data.Dataset.from_tensor_slices((
+    val_image_paths,
+    val_json_data_strings
+)).map(
+    map_func,
+    num_parallel_calls=tf.data.AUTOTUNE
+).batch(16).prefetch(tf.data.AUTOTUNE)
+#--end
+
+#callbacks
+callbacks=[
+    EarlyStopping(patience=10,verbose=1,monitor='val_mean_io_u',mode='max'),
+    ModelCheckpoint('best_unet_weights.h5',verbose=1,monitor='val_mean_io_u',save_best_only=True,mode='max')
+]
+#----Start
 print(f"\nStarting model training for {EPOCHS} epochs...")
 
 history = model.fit(
     train_dataset,
-    epochs=EPOCHS
+    epochs=EPOCHS,
+    validation_data = val_dataset,
+    callbacks=callbacks
 )
 
 # Save the weights so you can reload the model later without retraining
-model.save_weights("unet_crack_rust_dacl10k_weights.weights.h5")
+model.save_weights("unet3_crack_rust_dacl10k_weights.weights.h5")
 print("Training finished and weights saved.")
