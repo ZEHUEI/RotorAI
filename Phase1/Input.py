@@ -10,7 +10,6 @@ TARGET_LABELS = ["Crack", "Rust"]
 NUM_TARGET_CLASSES = len(TARGET_LABELS)
 
 
-# --- ADD THIS BLOCK AFTER CONFIGURATION CONSTANTS ---
 def unet_model(input_size=TARGET_SIZE + (3,), num_classes=NUM_TARGET_CLASSES):
     inputs = tf.keras.Input(input_size)
 
@@ -46,7 +45,7 @@ def unet_model(input_size=TARGET_SIZE + (3,), num_classes=NUM_TARGET_CLASSES):
 
 model = unet_model()
 
-WEIGHTS_FILE = "unet_crack_rust_dacl10k_weights.weights.h5"
+WEIGHTS_FILE = "unet2_crack_rust_dacl10k_weights.weights.h5"
 try:
     model.load_weights(WEIGHTS_FILE)
     print(f"Successfully loaded trained weights from {WEIGHTS_FILE}.")
@@ -56,7 +55,7 @@ except tf.errors.NotFoundError:
     exit() # Exit the script if weights aren't found
 
 #TEST
-def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.5):
+def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.3):
     img = tf.io.read_file(image_path)
     img = tf.image.decode_jpeg(img, channels=3)
     original_img = img.numpy()
@@ -76,23 +75,22 @@ def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.5):
         interpolation=cv2.INTER_NEAREST
     )
 
-    crack_mask = mask_resized[:, :, 0]  # Channel 0 = Crack
-    rust_mask = mask_resized[:, :, 1]  # Channel 1 = Rust
+    crack_mask = mask_resized[:, :, 0]
+    rust_mask = mask_resized[:, :, 1]
 
     return original_img, crack_mask, rust_mask
 
 
-# --- Test Execution Block (Add this to the very end of Input.py) ---
+# --- Test Execution Block-----------------------------------------------------------
 
-# 🛑 CHANGE THIS PATH to the image you want to test!
-TESTING123 = "Outcomes/Input/motor1.jpg"
-TEST_IMAGE_PATH = "Data/images/validation/dacl10k_v2_val_0001.jpg"
+TESTING123 = "../Outcomes/Input/motor3.jpg"
+TEST_IMAGE_PATH = "../Data/images/validation/dacl10k_v2_validation_0001.jpg"
 
-if os.path.exists(TEST_IMAGE_PATH):
+if os.path.exists(TESTING123):
     print("\n--- Starting Inference ---")
-    original_image, crack_mask, rust_mask = predict_image(model, TEST_IMAGE_PATH)
+    original_image, crack_mask, rust_mask = predict_image(model, TESTING123)
 
-    print(f"Test Image: {os.path.basename(TEST_IMAGE_PATH)}")
+    print(f"Test Image: {os.path.basename(TESTING123)}")
     print(f"Predicted Crack Pixels: {np.sum(crack_mask)}")
     print(f"Predicted Rust Pixels: {np.sum(rust_mask)}")
 
@@ -108,14 +106,14 @@ if os.path.exists(TEST_IMAGE_PATH):
 
     # Plot 2: Crack Detection (Overlaying red)
     crack_overlay = original_image.copy()
-    crack_overlay[crack_mask > 0] = [255, 0, 0]  # Red
+    crack_overlay[crack_mask > 0] = [0, 255, 255]
     plt.subplot(1, 3, 2)
     plt.imshow(crack_overlay)
     plt.title("Cracks Detected (Red)")
 
     # Plot 3: Rust Detection (Overlaying green)
     rust_overlay = original_image.copy()
-    rust_overlay[rust_mask > 0] = [0, 255, 0]  # Green
+    rust_overlay[rust_mask > 0] = [0, 255, 0]
     plt.subplot(1, 3, 3)
     plt.imshow(rust_overlay)
     plt.title("Rust Detected (Green)")
@@ -123,4 +121,4 @@ if os.path.exists(TEST_IMAGE_PATH):
     plt.tight_layout()
     plt.show()
 else:
-    print(f"Error: Test image not found at {TEST_IMAGE_PATH}")
+    print(f"Error: Test image not found at {TESTING123}")

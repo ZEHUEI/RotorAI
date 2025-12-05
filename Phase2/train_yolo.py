@@ -1,4 +1,3 @@
-from sympy.printing.pretty.pretty_symbology import annotated
 from ultralytics import YOLO
 import cv2
 
