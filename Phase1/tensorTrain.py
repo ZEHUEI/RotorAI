@@ -8,7 +8,6 @@ from pycocotools.coco import COCO
 from tensorflow.keras import layers, models
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from tensorflow.keras.applications import ResNet50
-import segmentation_models as sm
 
 #COCO files
 train_img="../Data/images/train"
@@ -62,7 +61,7 @@ def rasterize_polygon_to_mask(json_data_str, target_labels, target_size):
     )
     return resized_mask
 
-def dice_loss(y_true, y_pred, smooth=1):
+def dice_loss(y_true, y_pred, smooth=1e-6):
     y_true_f = tf.reshape(y_true, [-1])
     y_pred_f = tf.reshape(y_pred, [-1])
     intersection = tf.reduce_sum(y_true_f * y_pred_f)
@@ -71,10 +70,32 @@ def dice_loss(y_true, y_pred, smooth=1):
 def bce_dice_loss(y_true, y_pred):
     return tf.keras.losses.binary_crossentropy(y_true, y_pred) + dice_loss(y_true, y_pred)
 
-augment = tf.keras.Sequential([
+
+def mean_iou_custom(y_true, y_pred, smooth=1e-6,threshold=0.5):
+    # Threshold the predicted probabilities to get binary masks (0 or 1)
+    y_pred = tf.cast(y_pred > threshold, tf.float32)
+
+    # Flatten the tensors for easier computation: (Batch * H * W, Num_Classes)
+    y_true_f = tf.reshape(y_true, [-1, NUM_TARGET_CLASSES])
+    y_pred_f = tf.reshape(y_pred, [-1, NUM_TARGET_CLASSES])
+
+    # Calculate intersection and union per class
+    intersection = tf.reduce_sum(y_true_f * y_pred_f, axis=0)
+    union = tf.reduce_sum(y_true_f + y_pred_f, axis=0) - intersection
+
+    # IoU for each class
+    iou_per_class = (intersection + smooth) / (union + smooth)
+
+    # Mean IoU across all classes
+    return tf.reduce_mean(iou_per_class)
+
+geometric_augment = tf.keras.Sequential([
     layers.RandomFlip("horizontal"),
     layers.RandomFlip("vertical"),
     layers.RandomRotation(0.1),
+])
+
+photometric_augment = tf.keras.Sequential([
     layers.RandomContrast(0.2),
     layers.RandomBrightness(0.1),
 ])
@@ -94,10 +115,12 @@ def map_func(image_path, json_data_str):
     mask_tensor = tf.cast(mask_tensor, tf.float32)
 
     stacked_img_mask = tf.concat([img, mask_tensor], axis=-1)
-    augmented_stack = augment(stacked_img_mask)
+    augmented_stack = geometric_augment(stacked_img_mask)
 
     augmented_img = augmented_stack[:, :, :3]
     augmented_mask = augmented_stack[:, :, 3:]
+
+    augmented_img = photometric_augment(augmented_img)
     augmented_img = augmented_img / 255
 
     return augmented_img, augmented_mask
@@ -141,44 +164,57 @@ train_dataset = tf.data.Dataset.from_tensor_slices((
 train_dataset = train_dataset.map(
     map_func,
     num_parallel_calls=tf.data.AUTOTUNE
-).batch(4).prefetch(tf.data.AUTOTUNE)
+).batch(16).prefetch(tf.data.AUTOTUNE)
+
+#-------------------------------------------------------------------
+# REVISE USING RES50 Model
+#-------------------------------------------------------------------
 
 def unet_model(input_size=TARGET_SIZE + (3,), num_classes=NUM_TARGET_CLASSES):
-    inputs = tf.keras.Input(input_size)
+    inputs = base.input
 
-    # --- Encoder (Downsampling Path) ---
-    c1 = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(inputs)
-    c1 = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(c1)
-    p1 = layers.MaxPooling2D((2, 2))(c1)
+    def conv_block(input_tensor, num_filters):
+        x = layers.Conv2D(num_filters, (3, 3), padding='same')(input_tensor)
+        x = layers.BatchNormalization()(x)
+        x = layers.Activation('relu')(x)
+        x = layers.Conv2D(num_filters, (3, 3), padding='same')(x)
+        x = layers.BatchNormalization()(x)
+        x = layers.Activation('relu')(x)
+        return x
 
-    c2 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(p1)
-    c2 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(c2)
-    p2 = layers.MaxPooling2D((2, 2))(c2)
+    #---Encoder (RES50) downsampling
+    c4 = base.get_layer('conv4_block6_out').output
+    c3 = base.get_layer('conv3_block4_out').output
+    c2 = base.get_layer('conv2_block3_out').output
+    c1 = base.get_layer('conv1_relu').output
+    bottleneck = base.output
 
-    # --- Bottleneck ---
-    c3 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(p2)
-    c3 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(c3)
+    # --- Encoder (Upsampling Path) ---
+    u1 = layers.UpSampling2D((2,2))(bottleneck)
+    u1 = layers.concatenate([u1,c4])
+    d1 = conv_block(u1,512)
 
-    # --- Decoder (Upsampling Path) ---
-    u4 = layers.Conv2DTranspose(64, (2, 2), strides=(2, 2), padding='same')(c3)
-    u4 = layers.concatenate([u4, c2]) # Skip connection
-    c4 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(u4)
-    c4 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(c4)
+    u2 = layers.UpSampling2D((2, 2))(d1)
+    u2 = layers.concatenate([u2, c3])
+    d2 = conv_block(u2, 256)
 
-    u5 = layers.Conv2DTranspose(32, (2, 2), strides=(2, 2), padding='same')(c4)
-    u5 = layers.concatenate([u5, c1]) # Skip connection
-    c5 = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(u5)
-    c5 = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(c5)
+    u3 = layers.UpSampling2D((2, 2))(d2)
+    u3 = layers.concatenate([u3, c2])
+    d3 = conv_block(u3, 128)
+
+    u4 = layers.UpSampling2D((2, 2))(d3)
+    u4 = layers.concatenate([u4, c1])
+    d4 = conv_block(u4, 64)
 
     # Output Layer: NUM_TARGET_CLASSES channels (2: Crack, Rust)
     # Use Sigmoid because it's multi-label (a pixel can potentially be both)
-    outputs = layers.Conv2D(num_classes, (1, 1), activation='sigmoid')(c5)
+    outputs = layers.Conv2D(num_classes, (1, 1), activation='sigmoid')(d4)
 
     model = models.Model(inputs=[inputs], outputs=[outputs])
     return model
 
 model = unet_model()
-model.compile(optimizer='adam',loss=bce_dice_loss,metrics=['accuracy',tf.keras.metrics.MeanIoU(num_classes=NUM_TARGET_CLASSES)])
+model.compile(optimizer='adam',loss=bce_dice_loss,metrics=['accuracy',mean_iou_custom])
 
 EPOCHS =100
 
@@ -198,8 +234,8 @@ val_dataset = tf.data.Dataset.from_tensor_slices((
 
 #callbacks
 callbacks=[
-    EarlyStopping(patience=10,verbose=1,monitor='val_mean_io_u',mode='max'),
-    ModelCheckpoint('best_unet_weights.h5',verbose=1,monitor='val_mean_io_u',save_best_only=True,mode='max')
+    EarlyStopping(patience=10,verbose=1,monitor='val_mean_io_u_custom',mode='max'),
+    ModelCheckpoint('best_unet_weights.h5',verbose=1,monitor='val_mean_io_u_custom',save_best_only=True,mode='max')
 ]
 #----Start
 print(f"\nStarting model training for {EPOCHS} epochs...")

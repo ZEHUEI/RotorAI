@@ -44,8 +44,8 @@ def unet_model(input_size=TARGET_SIZE + (3,), num_classes=NUM_TARGET_CLASSES):
     return model
 
 model = unet_model()
-
-WEIGHTS_FILE = "unet2_crack_rust_dacl10k_weights.weights.h5"
+#unet3_crack_rust_dacl10k_weights
+WEIGHTS_FILE = "best_unet_weights.h5"
 try:
     model.load_weights(WEIGHTS_FILE)
     print(f"Successfully loaded trained weights from {WEIGHTS_FILE}.")
@@ -83,7 +83,7 @@ def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.3):
 
 # --- Test Execution Block-----------------------------------------------------------
 
-TESTING123 = "../Outcomes/Input/motor3.jpg"
+TESTING123 = "../Outcomes/Input/motor4.jpg"
 TEST_IMAGE_PATH = "../Data/images/validation/dacl10k_v2_validation_0001.jpg"
 
 if os.path.exists(TESTING123):
