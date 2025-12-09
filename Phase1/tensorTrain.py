@@ -86,9 +86,6 @@ def mean_iou_custom(y_true, y_pred, smooth=1e-6,threshold=0.35):
     # Mean IoU across all classes
     return tf.reduce_mean(iou_per_class)
 
-
-# Add after line 73 (after mean_iou_custom function)
-
 def crack_iou(y_true, y_pred, threshold=0.25):
     """IoU specifically for crack detection"""
     y_pred = tf.cast(y_pred[..., 0] > threshold, tf.float32)
@@ -133,6 +130,7 @@ def weighted_loss(y_true, y_pred):
 
     return crack_weight * crack_loss + rust_weight * rust_loss
 
+#-----------------------------------------------------------------
 geometric_augment = tf.keras.Sequential([
     layers.RandomFlip("horizontal"),
     layers.RandomZoom((-0.1, 0.0)),
@@ -143,6 +141,7 @@ photometric_augment = tf.keras.Sequential([
     layers.RandomContrast(0.2),
     layers.RandomBrightness(0.1),
 ])
+#--------------------------------------------------------------------
 
 def map_func(image_path, json_data_str):
     img = tf.io.read_file(image_path)
@@ -168,6 +167,10 @@ def map_func(image_path, json_data_str):
     augmented_img = preprocess_input(augmented_img)
 
     return augmented_img, augmented_mask
+#-----------------------------------------------
+'''
+Validation no augmentated
+'''
 def val_map_func(image_path,json_data_str):
     img = tf.io.read_file(image_path)
     img = tf.image.decode_jpeg(img, channels=3)
@@ -214,6 +217,8 @@ def collect_data_paths(img_dir, json_dir):
 
     return image_paths, json_data_strings
 
+
+
 print("Collecting training data paths and JSON content...")
 train_image_paths, train_json_data_strings = collect_data_paths(train_img, train_json)
 print(f"Found {len(train_image_paths)} image-JSON pairs for training.")
@@ -229,7 +234,7 @@ train_dataset = train_dataset.map(
 ).batch(16).prefetch(tf.data.AUTOTUNE)
 
 #-------------------------------------------------------------------
-# REVISE USING RES50 Model
+# Removed
 #-------------------------------------------------------------------
 
 # def unet_model(input_size=TARGET_SIZE + (3,), num_classes=NUM_TARGET_CLASSES):
@@ -314,5 +319,5 @@ history = model.fit(
 )
 
 # Save the weights so you can reload the model later without retraining
-model.save_weights("unet9/12/2025_crack_rust_dacl10k_weights.weights.h5")
+model.save_weights("unet9_12_2025_crack_rust_dacl10k_weights.weights.h5")
 print("Training finished and weights saved.")
