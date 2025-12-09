@@ -1,6 +1,5 @@
 #train with tensorflow and keras
 import cv2
-import sm
 import tensorflow as tf
 import json
 import os
@@ -8,7 +7,6 @@ import numpy as np
 from pycocotools.coco import COCO
 from tensorflow.keras import layers, models
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
-from tensorflow.keras.applications import ResNet50
 import segmentation_models as sm
 from segmentation_models import Unet
 from segmentation_models.losses import DiceLoss, BinaryFocalLoss
@@ -19,10 +17,10 @@ val_img="../Data/images/validation"
 train_json = "../Data/annotations/train"
 val_json = "../Data/annotations/validation"
 
-TARGET_SIZE = (512, 512)
+TARGET_SIZE = (1024, 1024)
 TARGET_LABELS = ["Crack", "Rust"]
 NUM_TARGET_CLASSES = len(TARGET_LABELS)
-BACKBONE = 'efficientnetb3'
+BACKBONE = 'resnet50'
 preprocess_input = sm.get_preprocessing(BACKBONE)
 base = Unet(backbone_name=BACKBONE, encoder_weights='imagenet', classes=NUM_TARGET_CLASSES, activation='sigmoid')
 
@@ -117,16 +115,16 @@ def weighted_loss(y_true, y_pred):
 
     dice = DiceLoss()
     focal = BinaryFocalLoss()
+    bce = tf.keras.losses.BinaryCrossentropy()
 
     # Split channels
-    y_true_crack = y_true[..., 0:1]
-    y_true_rust = y_true[..., 1:2]
-    y_pred_crack = y_pred[..., 0:1]
-    y_pred_rust = y_pred[..., 1:2]
+    yt_c = y_true[..., 0:1]
+    yp_c = y_pred[..., 0:1]
+    yt_r = y_true[..., 1:2]
+    yp_r = y_pred[..., 1:2]
 
-    # Calculate per-class loss
-    crack_loss = 0.5 * dice(y_true_crack, y_pred_crack) + 0.5 * focal(y_true_crack, y_pred_crack)
-    rust_loss = 0.5 * dice(y_true_rust, y_pred_rust) + 0.5 * focal(y_true_rust, y_pred_rust)
+    crack_loss = 0.4 * dice(yt_c, yp_c) + 0.4 * focal(yt_c, yp_c) + 0.2 * bce(yt_c, yp_c)
+    rust_loss = 0.5 * dice(yt_r, yp_r) + 0.5 * bce(yt_r, yp_r)
 
     return crack_weight * crack_loss + rust_weight * rust_loss
 
@@ -134,7 +132,7 @@ def weighted_loss(y_true, y_pred):
 geometric_augment = tf.keras.Sequential([
     layers.RandomFlip("horizontal"),
     layers.RandomZoom((-0.1, 0.0)),
-    layers.RandomRotation(0.05),
+    layers.RandomRotation(0.03),
 ])
 
 photometric_augment = tf.keras.Sequential([
