@@ -174,10 +174,10 @@ def unet_model(input_size=TARGET_SIZE + (3,), num_classes=NUM_TARGET_CLASSES):
     inputs = base.input
 
     def conv_block(input_tensor, num_filters):
-        x = layers.Conv2D(num_filters, (3, 3), padding='same')(input_tensor)
+        x = layers.Conv2D(num_filters, (3, 3), padding='same',kernel_initializer='he_normal')(input_tensor)
         x = layers.BatchNormalization()(x)
         x = layers.Activation('relu')(x)
-        x = layers.Conv2D(num_filters, (3, 3), padding='same')(x)
+        x = layers.Conv2D(num_filters, (3, 3), padding='same',kernel_initializer='he_normal')(x)
         x = layers.BatchNormalization()(x)
         x = layers.Activation('relu')(x)
         return x
@@ -206,9 +206,12 @@ def unet_model(input_size=TARGET_SIZE + (3,), num_classes=NUM_TARGET_CLASSES):
     u4 = layers.concatenate([u4, c1])
     d4 = conv_block(u4, 64)
 
+    u5 = layers.UpSampling2D((2,2))(d4)
+    d5 = conv_block(u5,32)
+
     # Output Layer: NUM_TARGET_CLASSES channels (2: Crack, Rust)
     # Use Sigmoid because it's multi-label (a pixel can potentially be both)
-    outputs = layers.Conv2D(num_classes, (1, 1), activation='sigmoid')(d4)
+    outputs = layers.Conv2D(num_classes, (1, 1), activation='sigmoid')(d5)
 
     model = models.Model(inputs=[inputs], outputs=[outputs])
     return model
