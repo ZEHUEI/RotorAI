@@ -55,7 +55,7 @@ except tf.errors.NotFoundError:
     exit() # Exit the script if weights aren't found
 
 #TEST
-def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.3):
+def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.9):
     img = tf.io.read_file(image_path)
     img = tf.image.decode_jpeg(img, channels=3)
     original_img = img.numpy()
@@ -83,14 +83,15 @@ def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.3):
 
 # --- Test Execution Block-----------------------------------------------------------
 
-TESTING123 = "../Outcomes/Input/motor4.jpg"
-TEST_IMAGE_PATH = "../Data/images/validation/dacl10k_v2_validation_0001.jpg"
+TESTING123 = "../Outcomes/Input/motor3.jpg"
+#0078 rust and 0089 cracks
+TEST_IMAGE_PATH = "../Data/images/testdev/dacl10k_v2_testdev_0078.jpg"
 
-if os.path.exists(TESTING123):
+if os.path.exists(TEST_IMAGE_PATH):
     print("\n--- Starting Inference ---")
-    original_image, crack_mask, rust_mask = predict_image(model, TESTING123)
+    original_image, crack_mask, rust_mask = predict_image(model, TEST_IMAGE_PATH)
 
-    print(f"Test Image: {os.path.basename(TESTING123)}")
+    print(f"Test Image: {os.path.basename(TEST_IMAGE_PATH)}")
     print(f"Predicted Crack Pixels: {np.sum(crack_mask)}")
     print(f"Predicted Rust Pixels: {np.sum(rust_mask)}")
 

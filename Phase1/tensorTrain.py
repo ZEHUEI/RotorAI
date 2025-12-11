@@ -11,6 +11,20 @@ import segmentation_models as sm
 from segmentation_models import Unet
 from segmentation_models.losses import DiceLoss, BinaryFocalLoss
 
+#Use GPU RTX 5070 nvdia
+print("GPU Checker")
+gpu_devices = tf.config.list_physical_devices('GPU')
+if gpu_devices:
+    print(f"using GPU {len(gpu_devices)} tensorflow")
+    for gpu in gpu_devices:
+        print(f"name : {gpu.name}")
+        tf.config.experimental.set_memory_growth(gpu,True)
+    print("train on GPU")
+else:
+    print("Warning nop gpu  runb on cpu")
+    print("------------------------------------\n")
+
+
 #COCO files
 train_img="../Data/images/train"
 val_img="../Data/images/validation"
@@ -110,7 +124,7 @@ def rust_iou(y_true, y_pred, threshold=0.25):
 
 def weighted_loss(y_true, y_pred):
     """Give more weight to cracks"""
-    crack_weight = 3.0  # 3x more important
+    crack_weight = 8.0  # 3x more important
     rust_weight = 1.0
 
     dice = DiceLoss()
