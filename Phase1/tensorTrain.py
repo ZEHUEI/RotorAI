@@ -318,7 +318,7 @@ val_dataset = tf.data.Dataset.from_tensor_slices((
 #callbacks
 callbacks=[
     EarlyStopping(patience=15,verbose=1,monitor='val_crack_iou',mode='max',restore_best_weights=True),
-    ModelCheckpoint('best9122025_unet_weights.h5',verbose=1,monitor='val_crack_iou',save_best_only=True,mode='max')
+    ModelCheckpoint('bestLinux_unet_weights.h5',verbose=1,monitor='val_crack_iou',save_best_only=True,mode='max')
 ]
 #----Start
 print(f"\nStarting model training for {EPOCHS} epochs...")
@@ -331,5 +331,5 @@ history = model.fit(
 )
 
 # Save the weights so you can reload the model later without retraining
-model.save_weights("unet9_12_2025_crack_rust_dacl10k_weights.weights.h5")
+model.save_weights("unetLinux_crack_rust_dacl10k_weights.weights.h5")
 print("Training finished and weights saved.")
