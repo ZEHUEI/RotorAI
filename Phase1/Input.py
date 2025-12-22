@@ -83,9 +83,9 @@ def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.9):
 
 # --- Test Execution Block-----------------------------------------------------------
 
-TESTING123 = "../Outcomes/Input/motor3.jpg"
+TESTING123 = "../Outcomes/Input/motor1.jpg"
 #0078 rust and 0089 cracks
-TEST_IMAGE_PATH = "../Data/images/testdev/dacl10k_v2_testdev_0078.jpg"
+TEST_IMAGE_PATH = "../Data/images/testdev/dacl10k_v2_testdev_0089.jpg"
 
 if os.path.exists(TEST_IMAGE_PATH):
     print("\n--- Starting Inference ---")
