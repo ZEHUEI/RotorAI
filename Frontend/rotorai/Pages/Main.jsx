@@ -1,6 +1,7 @@
 'use client';
 import { motion } from 'framer-motion';
 import React from 'react';
+import Button from '@/Components/Button';
 
 const containerVariants = {
   hidden: {},
@@ -18,17 +19,25 @@ const itemVariants = {
 
 const Main = () => {
   return (
-    <div className="border-2 border-amber-300 w-full h-[750px]">
-      <motion.div
-        className="flex items-center justify-center h-full"
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-      >
-        <motion.div variants={itemVariants} className="text-white text-2xl">
-          this will be the part where i insert the image like grok
+    <div className="flex flex-col items-center justify-center font-Inter">
+      <div className="w-full h-[600px]">
+        <motion.div
+          className="w-full h-full rounded-xl bg-[#0a0a0a] backdrop-blur-3xl shadow-xl shadow-white/10 flex items-center justify-center ring-2 ring-white/10"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          <motion.div
+            variants={itemVariants}
+            className="text-[#525252] text-2xl"
+          >
+            Import or drag ur image here!
+          </motion.div>
         </motion.div>
-      </motion.div>
+      </div>
+
+      <div className="mt-8"></div>
+      <Button />
     </div>
   );
 };
