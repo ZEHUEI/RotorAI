@@ -13,6 +13,7 @@
   --font-mono: var(--font-geist-mono);
   --font-AT: 'AT', Arial, Helvetica, sans-serif;
   --font-Inter: 'Inter-Bold', Arial, Helvetica, sans-serif;
+  --font-ocr: 'OCRA', Arial, Helvetica, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -39,6 +40,14 @@ body {
 @font-face {
   font-family: 'Inter-Bold';
   src: url('/fonts/Inter-Bold.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'OCRA';
+  src: url('/fonts/OCR-A Regular.otf') format('opentype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;

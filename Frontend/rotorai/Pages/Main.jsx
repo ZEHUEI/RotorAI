@@ -19,7 +19,7 @@ const itemVariants = {
 
 const Main = () => {
   return (
-    <div className="flex flex-col items-center justify-center font-Inter">
+    <div className="flex flex-col items-center justify-center font-Inter mt-10">
       <div className="w-full h-[600px]">
         <motion.div
           className="w-full h-full rounded-xl bg-[#0a0a0a] backdrop-blur-3xl shadow-xl shadow-white/10 flex items-center justify-center ring-2 ring-white/10"
