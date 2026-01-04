@@ -1,6 +1,6 @@
 'use client';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import React from 'react';
 import Button from '@/Components/Button';
 
 const containerVariants = {
@@ -16,6 +16,82 @@ const itemVariants = {
   hidden: { opacity: 0, y: 40 },
   visible: { opacity: 1, y: 0 },
 };
+
+//drag and drop
+
+// export default function ImageUpload() {
+//   const [file, setFile] = useState(null);
+//   const [preview, setPreview] = useState(null);
+//   const [result, setResult] = useState(null);
+//   const [loading, setLoading] = useState(false);
+
+//   const handleFile = (selectedFile) => {
+//     setFile(selectedFile);
+//     setPreview(URL.createObjectURL(selectedFile));
+//   };
+
+//   const onDrop = (e) => {
+//     e.preventDefault();
+//     handleFile(e.dataTransfer.files[0]);
+//   };
+
+//   const onChange = (e) => {
+//     handleFile(e.target.files[0]);
+//   };
+
+//   const submit = async () => {
+//     if (!file) return;
+
+//     setLoading(true);
+//     const formData = new FormData();
+//     formData.append("image", file);
+
+//     const res = await fetch("https://your-backend-url/predict", {
+//       method: "POST",
+//       body: formData,
+//     });
+
+//     const data = await res.json();
+//     setResult(data);
+//     setLoading(false);
+//   };
+
+//   return (
+//     <div>
+//       <div
+//         onDrop={onDrop}
+//         onDragOver={(e) => e.preventDefault()}
+//         onClick={() => document.getElementById("fileInput").click()}
+//         style={{
+//           border: "2px dashed #aaa",
+//           padding: "40px",
+//           textAlign: "center",
+//           cursor: "pointer",
+//         }}
+//       >
+//         {preview ? (
+//           <img src={preview} width={200} />
+//         ) : (
+//           <p>Drag & drop or click to upload</p>
+//         )}
+//       </div>
+
+//       <input
+//         id="fileInput"
+//         type="file"
+//         accept="image/*"
+//         hidden
+//         onChange={onChange}
+//       />
+
+//       <button onClick={submit} disabled={loading}>
+//         {loading ? "Analyzing..." : "Analyze Image"}
+//       </button>
+
+//       {result && <pre>{JSON.stringify(result, null, 2)}</pre>}
+//     </div>
+//   );
+// }
 
 const Main = () => {
   return (

@@ -11,6 +11,10 @@ const NavigationBar = () => {
     setCurrent(items[index]);
   };
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [current]);
+
   return (
     <>
       <div className="fixed top-0 left-0 right-0 z-50 w-full backdrop-blur-lg overflow-hidden text-2xl">
