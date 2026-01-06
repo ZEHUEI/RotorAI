@@ -331,5 +331,5 @@ history = model.fit(
 )
 
 # Save the weights so you can reload the model later without retraining
-model.save_weights("unetLinux_crack_rust_dacl10k_weights.weights.h5")
+model.save_weights("unetLinux_crack_rust_dacl10k_weights.h5")
 print("Training finished and weights saved.")

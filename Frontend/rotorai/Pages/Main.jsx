@@ -107,7 +107,9 @@ const Main = () => {
             variants={itemVariants}
             className="text-[#525252] text-2xl"
           >
-            Import or drag ur image here!
+            <p className="text-center">
+              Drag & Drop Images Here <br /> or <br /> Browse Device
+            </p>
           </motion.div>
         </motion.div>
       </div>

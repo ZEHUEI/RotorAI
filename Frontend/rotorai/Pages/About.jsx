@@ -69,8 +69,8 @@ const About = () => {
 
         <p className="font-Inter text-xl leading-relaxed max-w-3xl">
           RotorAI is an intelligent inspection system that leverages computer
-          vision and machine learning to automatically detect surface defects—
-          such as rust, cracks, and structural wear—in electric motors using
+          vision and machine learning to automatically detect surface defects-
+          such as rust, cracks, and structural wear-in electric motors using
           video footage.
         </p>
 

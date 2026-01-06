@@ -50,7 +50,7 @@ try:
     model.load_weights(WEIGHTS_FILE)
     print(f"Successfully loaded trained weights from {WEIGHTS_FILE}.")
 except tf.errors.NotFoundError:
-    print(f"🛑 Error: Weights file '{WEIGHTS_FILE}' not found.")
+    print(f"Error: Weights file '{WEIGHTS_FILE}' not found.")
     print("Please ensure you run tensorTrain.py first to generate the weights file.")
     exit() # Exit the script if weights aren't found
 
