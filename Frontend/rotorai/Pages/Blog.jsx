@@ -8,51 +8,71 @@ import BlogPosts from '@/Components/BlogPosts';
 const Data = [
   {
     id: 1,
+    title: 'Genesis',
+    image: './blogimg/Genesis.png',
     text: '',
     date: '',
   },
   {
     id: 2,
+    title: 'Exodus',
+    image: './blogimg/Genesis.png',
     text: '',
     date: '',
   },
   {
     id: 3,
+    title: 'Leviticus',
+    image: './blogimg/Genesis.png',
     text: '',
     date: '',
   },
   {
     id: 4,
+    title: 'Deuteronomy',
+    image: './blogimg/Genesis.png',
     text: '',
     date: '',
   },
   {
     id: 5,
+    title: 'Kings',
+    image: './blogimg/Genesis.png',
     text: '',
     date: '',
   },
   {
     id: 6,
+    title: 'Chronicles',
+    image: './blogimg/Genesis.png',
     text: '',
     date: '',
   },
   {
     id: 7,
+    title: 'Psalms',
+    image: './blogimg/Genesis.png',
     text: '',
     date: '',
   },
   {
     id: 8,
+    title: 'Romans',
+    image: './blogimg/Genesis.png',
     text: '',
     date: '',
   },
   {
     id: 9,
+    title: 'Thessalonians',
+    image: './blogimg/Genesis.png',
     text: '',
     date: '',
   },
   {
     id: 10,
+    title: 'Revelation',
+    image: './blogimg/Genesis.png',
     text: '',
     date: '',
   },
@@ -94,7 +114,7 @@ const Blog = () => {
             <div className="text-xl">
               Introducing Grok Business and Grok Enterprise
             </div>
-            <div className="text-gray-400/50 text-base mt-10">
+            <div className="text-gray-300 text-base mt-10">
               THe best assistant in the world is now Enterprise ready.
             </div>
           </div>

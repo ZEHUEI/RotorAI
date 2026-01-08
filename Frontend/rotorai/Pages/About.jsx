@@ -1,7 +1,7 @@
 'use client';
 import React from 'react';
 import FullBleedDivider from '@/Components/FullBleedDivider';
-import { p } from 'framer-motion/client';
+import AboutCard from '@/Components/AboutCard';
 
 const Features = [
   {
@@ -67,7 +67,7 @@ const About = () => {
       <section>
         <div className="font-ocr text-gray-400/50 text-2xl mb-5">[ ABOUT ]</div>
 
-        <p className="font-Inter text-xl leading-relaxed max-w-3xl">
+        <p className="font-Inter text-2xl leading-relaxed max-w-4xl">
           RotorAI is an intelligent inspection system that leverages computer
           vision and machine learning to automatically detect surface defects-
           such as rust, cracks, and structural wear-in electric motors using
@@ -85,21 +85,15 @@ const About = () => {
       <div className="w-full h-[0.1px] mt-15 mb-15 bg-white/20" />
 
       <section>
-        <div className="font-ocr text-gray-400/50 text-2xl mb-5">
+        <div className="font-ocr text-gray-400/50 text-2xl mb-10">
           [ FEATURES ]
         </div>
 
         {/*mapping */}
-        <div className="space-y-10 max-w-3xl">
+        <div className="grid grid-cols-2 space-x-10 space-y-10">
           {Features.map((item) => (
             <div key={item.id}>
-              {item.text1 && (
-                <p className="font-Inter text-xl mb-2">{item.text1}</p>
-              )}
-
-              <ul className="font-Inter text-gray-300 space-y-1">
-                {item.text2 && <li>• {item.text2}</li>}
-              </ul>
+              <AboutCard text1={item.text1} text2={item.text2} />
             </div>
           ))}
         </div>
@@ -116,7 +110,7 @@ const About = () => {
           {Stack.map((item) => (
             <div key={item.id}>
               {item.text1 && (
-                <p className="font-Inter text-xl mb-2">{item.text1}</p>
+                <p className="font-AT text-xl mb-2">{item.text1}</p>
               )}
 
               <ul className="font-Inter text-gray-300 space-y-1">

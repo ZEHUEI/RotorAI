@@ -15,6 +15,8 @@ const ShineVariants = {
   },
 };
 
+//this will activate the backend for flash when press ( on press ) set cpooldown until it is finish
+
 const Button = () => {
   return (
     <>
