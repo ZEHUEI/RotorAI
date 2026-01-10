@@ -17,7 +17,7 @@ from tensorflow.keras import mixed_precision
 from keras.layers import Lambda
 
 tf.config.optimizer.set_jit(True)
-mixed_precision.set_global_policy('mixed_float16')
+# mixed_precision.set_global_policy('mixed_float16')
 
 
 #Use GPU RTX 5070 nvdia
@@ -41,7 +41,7 @@ train_json = "../Data/annotations/train"
 val_json = "../Data/annotations/validation"
 
 TARGET_SIZE = (512, 512)
-BATCH_SIZE = 1
+BATCH_SIZE = 4
 TARGET_LABELS = ["Crack", "Rust"]
 NUM_TARGET_CLASSES = len(TARGET_LABELS)
 BACKBONE = 'resnet50'
@@ -84,12 +84,12 @@ def rasterize_polygon_to_mask(json_data_str, target_labels, target_size):
     resized_mask = cv2.resize(
         mask,
         (python_target_size[1], python_target_size[0]),  # cv2 uses (W, H)
-        interpolation=cv2.INTER_AREA
+        interpolation=cv2.INTER_NEAREST
     )
     resized_mask = (resized_mask > 0.5).astype(np.uint8)
     return resized_mask
 
-def mean_iou_custom(y_true, y_pred, smooth=1e-6,threshold=0.35):
+def mean_iou_custom(y_true, y_pred, smooth=1e-6,threshold=0.2):
     # Threshold the predicted probabilities to get binary masks (0 or 1)
     y_pred = tf.cast(y_pred > threshold, tf.float32)
 
@@ -107,7 +107,7 @@ def mean_iou_custom(y_true, y_pred, smooth=1e-6,threshold=0.35):
     # Mean IoU across all classes
     return tf.reduce_mean(iou_per_class)
 
-def crack_iou(y_true, y_pred, threshold=0.35):
+def crack_iou(y_true, y_pred, threshold=0.2):
     y_true = tf.cast(y_true[..., 0], tf.float32)
     y_pred = tf.cast(y_pred[..., 0] > threshold, tf.float32)
 
@@ -117,7 +117,7 @@ def crack_iou(y_true, y_pred, threshold=0.35):
 
     return (intersection + smooth) / (union + smooth)
 
-def rust_iou(y_true, y_pred, threshold=0.35):
+def rust_iou(y_true, y_pred, threshold=0.2):
     """IoU specifically for rust detection"""
     y_pred = tf.cast(y_pred[..., 1] > threshold, tf.float32)
     y_true = y_true[..., 1]
@@ -129,30 +129,26 @@ def rust_iou(y_true, y_pred, threshold=0.35):
     return (intersection + smooth) / (union + smooth)
 
 dice = DiceLoss()
-focal = BinaryFocalLoss()
+# focal = BinaryFocalLoss()
 bce = tf.keras.losses.BinaryCrossentropy()
 
 def weighted_loss(y_true, y_pred):
     y_true = tf.cast(y_true, tf.float32)
     y_pred = tf.cast(y_pred, tf.float32)
 
-    crack_weight = 8.0
-    rust_weight = 1.0
+    # Cracks are usually much thinner/harder than rust
+    crack_weight = 5.0
+    rust_weight = 2.0
 
-    yt_c = y_true[..., 0:1]
-    yp_c = y_pred[..., 0:1]
-    yt_r = y_true[..., 1:2]
-    yp_r = y_pred[..., 1:2]
+    yt_c, yp_c = y_true[..., 0:1], y_pred[..., 0:1]
+    yt_r, yp_r = y_true[..., 1:2], y_pred[..., 1:2]
 
-    crack_loss = (
-        0.4 * dice(yt_c, yp_c) +
-        0.4 * focal(yt_c, yp_c) +
-        0.2 * bce(yt_c, yp_c)
-    )
+    # Use a higher multiplier for Dice to combat the "empty mask" problem
+    crack_loss = (dice(yt_c, yp_c) * 2.0) + bce(yt_c, yp_c)
+    rust_loss  = (dice(yt_r, yp_r) * 2.0) + bce(yt_r, yp_r)
 
-    rust_loss = 0.5 * dice(yt_r, yp_r) + 0.5 * bce(yt_r, yp_r)
+    return (crack_weight * crack_loss) + (rust_weight * rust_loss)
 
-    return crack_weight * crack_loss + rust_weight * rust_loss
 
 
 #-----------------------------------------------------------------
