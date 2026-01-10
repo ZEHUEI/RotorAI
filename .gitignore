@@ -1,6 +1,4 @@
 Data/
-*.jpg
-*.json
 *.h5
 *.pt
 *.pth
