@@ -1,4 +1,7 @@
 import os
+
+from Phase1.tensorTrain import detect_rust_and_cracks
+
 os.environ["SM_FRAMEWORK"] = "tf.keras"
 import cv2
 import tensorflow as tf
@@ -10,47 +13,9 @@ from keras.layers import Lambda
 from tensorflow.keras import layers, models
 
 TARGET_SIZE = (512, 512)
-TARGET_LABELS = ["Crack", "Rust"]
-NUM_TARGET_CLASSES = 2
+TARGET_LABELS = ["corrosion"]
+NUM_TARGET_CLASSES = len(TARGET_LABELS)
 BACKBONE = 'resnet50'
-#old
-# NUM_TARGET_CLASSES = len(TARGET_LABELS)
-
-# old
-# def unet_model(input_size=TARGET_SIZE + (3,), num_classes=NUM_TARGET_CLASSES):
-#     inputs = tf.keras.Input(input_size)
-#
-#     # --- Encoder (Downsampling Path) ---
-#     c1 = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(inputs)
-#     c1 = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(c1)
-#     p1 = layers.MaxPooling2D((2, 2))(c1)
-#
-#     c2 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(p1)
-#     c2 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(c2)
-#     p2 = layers.MaxPooling2D((2, 2))(c2)
-#
-#     # --- Bottleneck ---
-#     c3 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(p2)
-#     c3 = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(c3)
-#
-#     # --- Decoder (Upsampling Path) ---
-#     u4 = layers.Conv2DTranspose(64, (2, 2), strides=(2, 2), padding='same')(c3)
-#     u4 = layers.concatenate([u4, c2])  # Skip connection
-#     c4 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(u4)
-#     c4 = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(c4)
-#
-#     u5 = layers.Conv2DTranspose(32, (2, 2), strides=(2, 2), padding='same')(c4)
-#     u5 = layers.concatenate([u5, c1])  # Skip connection
-#     c5 = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(u5)
-#     c5 = layers.Conv2D(32, (3, 3), activation='relu', padding='same')(c5)
-#
-#     # Output Layer
-#     outputs = layers.Conv2D(num_classes, (1, 1), activation='sigmoid')(c5)
-#
-#     model = models.Model(inputs=[inputs], outputs=[outputs])
-#     return model
-#
-# model = unet_model()
 
 #----------------------new
 base_model = Unet(
@@ -78,38 +43,11 @@ except tf.errors.NotFoundError:
     print("Please ensure you run tensorTrain.py first to generate the weights file.")
     exit() # Exit the script if weights aren't found
 
-# old TEST
-# def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.2):
-#     img = tf.io.read_file(image_path)
-#     img = tf.image.decode_jpeg(img, channels=3)
-#     original_img = img.numpy()
-#
-#     img = tf.image.resize(img, target_size)
-#     img = tf.expand_dims(img, axis=0)
-#     img = tf.cast(img, tf.float32) / 255.0
-#
-#     print(f"Predicting mask for {os.path.basename(image_path)}...")
-#     prediction = model.predict(img)[0]
-#
-#     binary_mask = (prediction > threshold).astype(np.uint8)
-#
-#     mask_resized = cv2.resize(
-#         binary_mask,
-#         (original_img.shape[1], original_img.shape[0]),
-#         interpolation=cv2.INTER_NEAREST
-#     )
-#
-#     crack_mask = mask_resized[:, :, 0]
-#     rust_mask = mask_resized[:, :, 1]
-#
-#     return original_img, crack_mask, rust_mask
-
-
 #new TEST
 preprocess_input = sm.get_preprocessing(BACKBONE)
 
 
-def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.2):  # Default threshold lowered to 0.2
+def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.5):
     # 1. Load original image
     img_raw = tf.io.read_file(image_path)
     img_decoded = tf.image.decode_jpeg(img_raw, channels=3)
@@ -118,39 +56,39 @@ def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.2):  #
     # 2. Resize to the size the model expects
     img_resized = tf.image.resize(img_decoded, target_size).numpy()
 
-    # 3. CRITICAL: Use ResNet50 preprocessing instead of /255.0
+    # 3. Preprocess for ResNet backbone
     img_preprocessed = preprocess_input(img_resized)
     img_batch = np.expand_dims(img_preprocessed, axis=0)
 
-    print(f"Predicting mask for {os.path.basename(image_path)}...")
-    prediction = model.predict(img_batch)[0]
+    # 4. Predict corrosion mask
+    pred_mask = model.predict(img_batch)[0, :, :, 0]
+    corrosion_mask = (pred_mask > threshold).astype(np.uint8)
 
-    # 4. Use a lower threshold (0.2 is better for thin cracks)
-    binary_mask = (prediction > threshold).astype(np.uint8)
-
-    # 5. Resize mask back to original size for overlay
-    mask_resized = cv2.resize(
-        binary_mask,
+    # 5. Resize back to original image size
+    corrosion_mask_resized = cv2.resize(
+        corrosion_mask,
         (original_img.shape[1], original_img.shape[0]),
-        interpolation=cv2.INTER_NEAREST  # Keep thin lines sharp
+        interpolation=cv2.INTER_NEAREST
     )
 
-    crack_mask = mask_resized[:, :, 0]
-    rust_mask = mask_resized[:, :, 1]
+    # 6. Post-processing to get rust and cracks
+    rust_mask, crack_mask = detect_rust_and_cracks(original_img, corrosion_mask_resized)
 
-    return original_img, crack_mask, rust_mask
+    return original_img, corrosion_mask_resized, rust_mask, crack_mask
+
 
 # --- Test Execution Block-----------------------------------------------------------
 
 TESTING123 = "../Outcomes/Input/motor3.jpg"
 #0078 rust and 0089 cracks
-# TEST_IMAGE_PATH = "../Data/images/testdev/dacl10k_v2_testdev_0089.jpg"
+TEST_IMAGE_PATH = "../Data/test/1_58_jpg.rf.926f79e868a36f37b8bbf79c3e4d4fa6.jpg"
 
-if os.path.exists(TESTING123):
+if os.path.exists(TEST_IMAGE_PATH):
     print("\n--- Starting Inference ---")
-    original_image, crack_mask, rust_mask = predict_image(model, TESTING123)
+    original_image, corrosion_mask, rust_mask, crack_mask = predict_image(model, TEST_IMAGE_PATH)
 
-    print(f"Test Image: {os.path.basename(TESTING123)}")
+
+    print(f"Test Image: {os.path.basename(TEST_IMAGE_PATH)}")
     print(f"Predicted Crack Pixels: {np.sum(crack_mask)}")
     print(f"Predicted Rust Pixels: {np.sum(rust_mask)}")
 
@@ -181,4 +119,4 @@ if os.path.exists(TESTING123):
     plt.tight_layout()
     plt.show()
 else:
-    print(f"Error: Test image not found at {TESTING123}")
+    print(f"Error: Test image not found at {TEST_IMAGE_PATH}")

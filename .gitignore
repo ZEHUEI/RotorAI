@@ -1,4 +1,6 @@
 Data/
+Archive/
+Ignore/
 *.h5
 *.pt
 *.pth
