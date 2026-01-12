@@ -1,7 +1,5 @@
 import os
-
 from Phase1.tensorTrain import detect_rust_and_cracks
-
 os.environ["SM_FRAMEWORK"] = "tf.keras"
 import cv2
 import tensorflow as tf
@@ -34,9 +32,10 @@ model = tf.keras.Model(
 )
 #---------------------------
 #unet3_crack_rust_dacl10k_weights
-WEIGHTS_FILE = "unetLinux_crack_rust_dacl10k_weights.h5"
+WEIGHTS_FILE = "best_unet2_corrosion.h5"
 try:
     model.load_weights(WEIGHTS_FILE)
+    print("Model output test:", model(np.zeros((1, 512, 512, 3))).numpy().mean())
     print(f"Successfully loaded trained weights from {WEIGHTS_FILE}.")
 except tf.errors.NotFoundError:
     print(f"Error: Weights file '{WEIGHTS_FILE}' not found.")
@@ -47,7 +46,7 @@ except tf.errors.NotFoundError:
 preprocess_input = sm.get_preprocessing(BACKBONE)
 
 
-def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.5):
+def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.1):
     # 1. Load original image
     img_raw = tf.io.read_file(image_path)
     img_decoded = tf.image.decode_jpeg(img_raw, channels=3)
@@ -83,12 +82,12 @@ TESTING123 = "../Outcomes/Input/motor3.jpg"
 #0078 rust and 0089 cracks
 TEST_IMAGE_PATH = "../Data/test/1_58_jpg.rf.926f79e868a36f37b8bbf79c3e4d4fa6.jpg"
 
-if os.path.exists(TEST_IMAGE_PATH):
+if os.path.exists(TESTING123):
     print("\n--- Starting Inference ---")
-    original_image, corrosion_mask, rust_mask, crack_mask = predict_image(model, TEST_IMAGE_PATH)
+    original_image, corrosion_mask, rust_mask, crack_mask = predict_image(model, TESTING123)
 
 
-    print(f"Test Image: {os.path.basename(TEST_IMAGE_PATH)}")
+    print(f"Test Image: {os.path.basename(TESTING123)}")
     print(f"Predicted Crack Pixels: {np.sum(crack_mask)}")
     print(f"Predicted Rust Pixels: {np.sum(rust_mask)}")
 
@@ -100,14 +99,14 @@ if os.path.exists(TEST_IMAGE_PATH):
     # Plot 1: Original Image
     plt.subplot(1, 3, 1)
     plt.imshow(original_image)
-    plt.title("Original Image")
+    plt.title("YES BABY!!!!!!!!!!!!!")
 
-    # Plot 2: Crack Detection (Overlaying red)
+    # Plot 2: Crack Detection (Overlaying cyan)
     crack_overlay = original_image.copy()
     crack_overlay[crack_mask > 0] = [0, 255, 255]
     plt.subplot(1, 3, 2)
     plt.imshow(crack_overlay)
-    plt.title("Cracks Detected (Red)")
+    plt.title("Cracks Detected (Cyan)")
 
     # Plot 3: Rust Detection (Overlaying green)
     rust_overlay = original_image.copy()
@@ -119,4 +118,4 @@ if os.path.exists(TEST_IMAGE_PATH):
     plt.tight_layout()
     plt.show()
 else:
-    print(f"Error: Test image not found at {TEST_IMAGE_PATH}")
+    print(f"Error: Test image not found at {TESTING123}")

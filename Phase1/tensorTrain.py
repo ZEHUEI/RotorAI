@@ -2,7 +2,6 @@
 import os
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["SM_FRAMEWORK"] = "tf.keras"
-
 import cv2
 import tensorflow as tf
 tf.keras.backend.clear_session()
@@ -68,6 +67,8 @@ def rasterize_coco_annotations(anns, target_size, target_labels):
                 pts = np.array(seg).reshape(-1, 2).astype(np.int32)
                 temp_mask = np.zeros((H, W), dtype=np.uint8)
                 cv2.fillPoly(temp_mask, [pts], 1)
+                kernel = np.ones((3, 3), np.uint8)
+                mask[:, :, channel_idx] = cv2.dilate(mask[:, :, channel_idx], kernel, iterations=1)
                 mask[:, :, channel_idx] = np.maximum(mask[:, :, channel_idx], temp_mask)
 
     return mask
@@ -76,7 +77,7 @@ def rasterize_coco_annotations(anns, target_size, target_labels):
 # Metric loss custom
 #------------------------------
 dice = DiceLoss()
-# focal = BinaryFocalLoss()
+focal = BinaryFocalLoss()
 bce = tf.keras.losses.BinaryCrossentropy()
 
 def mean_iou_custom(y_true, y_pred, smooth=1e-6):
@@ -88,82 +89,77 @@ def mean_iou_custom(y_true, y_pred, smooth=1e-6):
 def weighted_loss(y_true, y_pred):
     y_true = tf.cast(y_true, tf.float32)
     y_pred = tf.cast(y_pred, tf.float32)
-    return dice(y_true, y_pred) + bce(y_true, y_pred)
+
+    return dice(y_true, y_pred) + (2.0 * focal(y_true, y_pred))
 
 #-----------------------
 #POST PROCESSING: RUST AND CRACKS
 #------------------------
 def detect_rust_and_cracks(image,corrosion_mask):
-    """
-        Args:
-            image: Original image (H, W, 3), uint8 0-255
-            corrosion_mask: Predicted binary mask of corrosion (H, W), 0 or 1
-        Returns:
-            rust_mask: Binary mask of rust regions
-            cracks_mask: Binary mask of cracks inside corrosion
-        """
-    # --- Rust detection (brown/orange) ---
-    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    lab = cv2.cvtColor(image,cv2.COLOR_RGB2Lab)
 
-    # Rust HSV range (adjust if needed)
-    lower_rust = np.array([5, 50, 50])
-    upper_rust = np.array([25, 255, 255])
+    rust_mask = cv2.inRange(lab, np.array([0, 130, 135]), np.array([255, 255, 255]))
+    rust_mask = cv2.bitwise_and(rust_mask, rust_mask, mask=corrosion_mask)
 
-    rust_mask = cv2.inRange(hsv, lower_rust, upper_rust)
-    rust_mask = (rust_mask > 0).astype(np.uint8)
-
-    # Only keep rust inside corrosion
-    rust_mask = rust_mask * corrosion_mask
-
-    # --- Crack detection ---
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-    gray_corrosion = gray.copy()
-    gray_corrosion[corrosion_mask == 0] = 255  # ignore background
 
-    edges = cv2.Canny(gray_corrosion, 50, 150)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
-    cracks_mask = (edges > 0).astype(np.uint8)
+    clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(6, 6))
+    enhanced_gray = clahe.apply(gray)
 
-    return rust_mask, cracks_mask
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+    blackhat = cv2.morphologyEx(enhanced_gray, cv2.MORPH_BLACKHAT, kernel)
 
-# -------------------------
-# SAVE POST-PROCESSING MASKS
-# -------------------------
-def save_rust_crack_masks(model, image_paths, save_dir="./Postprocessed_Masks"):
-    """
-    Predict corrosion mask and generate rust + crack masks for all images.
-    Saves masks as PNG.
-    """
-    os.makedirs(save_dir, exist_ok=True)
+    blackhat_in_rust = cv2.bitwise_and(blackhat, blackhat, mask=rust_mask)
 
-    for img_path in image_paths:
-        # Read and preprocess
-        img = cv2.imread(img_path)
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img_resized = cv2.resize(img_rgb, TARGET_SIZE)
-        img_input = preprocess_input(img_resized.astype(np.float32))
-        img_input = np.expand_dims(img_input, axis=0)
+    _, cracks_thresh = cv2.threshold(blackhat_in_rust, 50, 255, cv2.THRESH_BINARY)
 
-        # Predict corrosion mask
-        pred_mask = model.predict(img_input)[0, :, :, 0]
-        pred_mask_bin = (pred_mask > 0.5).astype(np.uint8)
+    #Filter
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(cracks_thresh, connectivity=8)
+    final_cracks = np.zeros_like(cracks_thresh)
 
-        # Generate rust and crack masks
-        rust_mask, cracks_mask = detect_rust_and_cracks(img_resized, pred_mask_bin)
+    for i in range(1, num_labels):
+        area = stats[i, cv2.CC_STAT_AREA]
+        w = stats[i, cv2.CC_STAT_WIDTH]
+        h = stats[i, cv2.CC_STAT_HEIGHT]
 
-        # Save masks
-        base_name = os.path.splitext(os.path.basename(img_path))[0]
-        cv2.imwrite(os.path.join(save_dir, f"{base_name}_corrosion.png"), pred_mask_bin*255)
-        cv2.imwrite(os.path.join(save_dir, f"{base_name}_rust.png"), rust_mask*255)
-        cv2.imwrite(os.path.join(save_dir, f"{base_name}_cracks.png"), cracks_mask*255)
+        # Calculate aspect ratio (Length / Width)
+        # Cracks are long (high aspect ratio). Rust pits are round (low ratio).
+        aspect_ratio = max(w, h) / (min(w, h) + 1e-5)
 
-    print(f"Saved all masks to {save_dir}")
+        #Solidity: Real cracks vs Rust pits
+        mask_component = (labels == i).astype(np.uint8)
+        contours, _ = cv2.findContours(mask_component, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+        if contours:
+            cnt = contours[0]
+            # Calculate Perimeter
+            perimeter = cv2.arcLength(cnt, True)
+
+            # Convex Hull and Solidity
+            convex_hull_area = cv2.contourArea(cv2.convexHull(cnt))
+            solidity = float(area) / (convex_hull_area + 1e-5)
+
+            # --- NEW TUNING LOGIC ---
+            # 1. High aspect ratio (clear straight lines)
+            is_straight_crack = aspect_ratio > 1.7
+
+            # 2. High perimeter complexity (curved/diagonal fine cracks)
+            # A circle is ~12.5; higher values mean more 'line-like'
+            complexity = (perimeter ** 2) / (area + 1e-5)
+            is_fine_crack = complexity > 25 and solidity < 0.6
+
+            # 3. Small but very thin (micro-cracks)
+            is_micro_crack = area > 5 and aspect_ratio > 2.2
+
+            if is_straight_crack or is_fine_crack or is_micro_crack:
+                final_cracks[labels == i] = 255
+
+    return rust_mask, final_cracks
 #-----------------------------------------------------------------
 #Augment
 #-----------------------------------------------------------------
 geometric_augment = tf.keras.Sequential([
+    layers.RandomTranslation(height_factor=0.1, width_factor=0.1),
     layers.RandomFlip("horizontal"),
     layers.RandomZoom((-0.1, 0.0)),
     layers.RandomRotation(0.03),
@@ -172,6 +168,11 @@ geometric_augment = tf.keras.Sequential([
 photometric_augment = tf.keras.Sequential([
     layers.RandomContrast(0.2),
     layers.RandomBrightness(0.1),
+layers.Lambda(lambda x: tf.cond(
+        tf.random.uniform([]) > 0.5,
+        lambda: tf.image.gaussian_blur(x, kernel_size=(3, 3), sigma=0.5),
+        lambda: x
+    ))
 ])
 
 #-----------------------------------------------------------------
@@ -182,40 +183,27 @@ def map_func(image_path, anns):
     img = tf.image.decode_jpeg(img, channels=3)
     img = tf.image.resize(img, TARGET_SIZE)
 
-    # rasterize annotations into mask (Python, outside of TF)
+    # Rasterize annotations into mask
     mask_np = rasterize_coco_annotations(anns, TARGET_SIZE, TARGET_LABELS)
     mask_tensor = tf.convert_to_tensor(mask_np, dtype=tf.float32)
 
-    stacked_img_mask = tf.concat([img, mask_tensor], axis=-1)
-    augmented_stack = geometric_augment(stacked_img_mask)
-
-    augmented_img = augmented_stack[:, :, :3]
-    augmented_mask = augmented_stack[:, :, 3:]
-
-    augmented_img = photometric_augment(augmented_img)
-    augmented_img = preprocess_input(augmented_img)
-
-    return augmented_img, augmented_mask
-
-#-----------------------------------------------
-'''
-Validation no augmentated
-'''
-def val_map_func(image_path,json_data_str):
-    img = tf.io.read_file(image_path)
-    img = tf.image.decode_jpeg(img, channels=3)
-    img = tf.image.resize(img, TARGET_SIZE)
-
-    mask_tensor = tf.py_function(
-        rasterize_coco_annotations,
-        [json_data_str, tf.constant(TARGET_LABELS), tf.constant(TARGET_SIZE)],
-        tf.uint8
-    )
-    mask_tensor.set_shape([TARGET_SIZE[0], TARGET_SIZE[1], NUM_TARGET_CLASSES])
+    img = preprocess_input(img)
     mask_tensor = tf.cast(mask_tensor, tf.float32)
 
-    img = preprocess_input(img)
     return img, mask_tensor
+
+def val_map_func(image_path, anns):
+    img = cv2.imread(image_path)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img = cv2.resize(img, TARGET_SIZE)
+
+    mask_np = rasterize_coco_annotations(anns, TARGET_SIZE, TARGET_LABELS)
+
+    img = preprocess_input(img.astype(np.float32))
+    mask = mask_np.astype(np.float32)
+
+    return img, mask
+
 
 
 def tf_train_map_func(img_path):
@@ -277,6 +265,17 @@ def collect_coco_data(img_dir, coco_json_path):
 #--------------
 #prepare datasets
 #-----------------
+def apply_augmentations(img, mask):
+    # img: (H, W, 3), mask: (H, W, num_classes)
+    # Concatenate image and mask along channels to apply same geometric transform
+    combined = tf.concat([img, mask], axis=-1)
+    combined = geometric_augment(tf.expand_dims(combined, 0), training=True)
+    combined = tf.squeeze(combined, 0)
+
+    img_aug = combined[..., :3]
+    mask_aug = combined[..., 3:]
+    return img_aug, mask_aug
+
 print("Collecting training data paths and JSON content...")
 train_image_paths, train_annotations  = collect_coco_data(train_img, train_json)
 train_ann_dict = {path: anns for path, anns in zip(train_image_paths, train_annotations)}
@@ -290,7 +289,12 @@ train_dataset = tf.data.Dataset.from_tensor_slices((
 train_dataset = train_dataset.map(
     tf_train_map_func,
     num_parallel_calls=tf.data.AUTOTUNE
-).batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
+)
+train_dataset = train_dataset.map(
+    apply_augmentations,
+    num_parallel_calls=tf.data.AUTOTUNE
+)
+train_dataset=train_dataset.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
 
 #-------------
 #model
@@ -336,21 +340,25 @@ val_dataset = tf.data.Dataset.from_tensor_slices((
 #-------------
 callbacks=[
     EarlyStopping(patience=15,verbose=1,monitor='val_mean_iou_custom',mode='max',restore_best_weights=True),
-    ModelCheckpoint('best_unet_corrosion.h5',verbose=1,monitor='val_crack_iou',save_best_only=True,mode='max')
+    ModelCheckpoint('best_unet2_corrosion.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max')
 ]
 
 #---------
 #start train
 #----------
-print(f"\nStarting model training for {EPOCHS} epochs...")
+def train():
+    print(f"\nStarting model training for {EPOCHS} epochs...")
 
-history = model.fit(
-    train_dataset,
-    epochs=EPOCHS,
-    validation_data = val_dataset,
-    callbacks=callbacks
-)
+    history = model.fit(
+        train_dataset,
+        epochs=EPOCHS,
+        validation_data = val_dataset,
+        callbacks=callbacks
+    )
 
-# Save the weights so you can reload the model later without retraining
-model.save_weights("unet_corrosion_model.h5")
-print("Training finished and weights saved.")
+    # Save the weights so you can reload the model later without retraining
+    model.save_weights("unet2_corrosion_model.h5")
+    print("Training finished and weights saved.")
+
+if __name__ == "__main__":
+    train()

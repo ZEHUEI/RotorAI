@@ -1,66 +1,99 @@
+import os
+os.environ["SM_FRAMEWORK"] = "tf.keras"
 from flask import Flask, request, jsonify
 import tensorflow as tf
 from PIL import Image
 import numpy as np
 from tensorflow.keras import layers, models
+import cv2
+from PIL import Image
+import segmentation_models as sm
+from segmentation_models import Unet
+from keras.layers import Lambda
+import base64
+from io import BytesIO
+
+from Phase1.tensorTrain import detect_rust_and_cracks, preprocess_input
 
 app = Flask(__name__)
 
+def image_to_base64(img_np):
+    img_pil = Image.fromarray(img_np)
+    buffer = BytesIO()
+    img_pil.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+
 TARGET_SIZE = (512, 512)
-TARGET_LABELS = ["Crack", "Rust"]
-NUM_TARGET_CLASSES = len(TARGET_LABELS)
+BACKBONE = "resnet50"
+WEIGHTS_FILE = "best_unet_corrosion.h5"
+THRESHOLD = 0.1
 
 WEIGHTS_PATH = r"C:\Users\Ze Huei\PycharmProjects\RotorAI\Phase1\best_unet_weights.h5"
 
-def unet_model(input_size=TARGET_SIZE + (3,), num_classes=NUM_TARGET_CLASSES):
-    inputs = tf.keras.Input(input_size)
+preprocess_input = sm.get_preprocessing(BACKBONE)
 
-    c1 = layers.Conv2D(32, 3, activation='relu', padding='same')(inputs)
-    c1 = layers.Conv2D(32, 3, activation='relu', padding='same')(c1)
-    p1 = layers.MaxPooling2D(2)(c1)
+base_model = Unet(
+    backbone_name=BACKBONE,
+    encoder_weights=None,
+    classes=1,
+    activation='sigmoid',
+    input_shape=TARGET_SIZE + (3,)
+)
 
-    c2 = layers.Conv2D(64, 3, activation='relu', padding='same')(p1)
-    c2 = layers.Conv2D(64, 3, activation='relu', padding='same')(c2)
-    p2 = layers.MaxPooling2D(2)(c2)
+outputs = Lambda(lambda t: tf.cast(t, tf.float32))(base_model.output)
 
-    c3 = layers.Conv2D(128, 3, activation='relu', padding='same')(p2)
-    c3 = layers.Conv2D(128, 3, activation='relu', padding='same')(c3)
+model = tf.keras.Model(
+    inputs=base_model.input,
+    outputs=outputs
+)
 
-    u4 = layers.Conv2DTranspose(64, 2, strides=2, padding='same')(c3)
-    u4 = layers.concatenate([u4, c2])
-    c4 = layers.Conv2D(64, 3, activation='relu', padding='same')(u4)
-    c4 = layers.Conv2D(64, 3, activation='relu', padding='same')(c4)
-
-    u5 = layers.Conv2DTranspose(32, 2, strides=2, padding='same')(c4)
-    u5 = layers.concatenate([u5, c1])
-    c5 = layers.Conv2D(32, 3, activation='relu', padding='same')(u5)
-    c5 = layers.Conv2D(32, 3, activation='relu', padding='same')(c5)
-
-    outputs = layers.Conv2D(num_classes, 1, activation='sigmoid')(c5)
-
-    return models.Model(inputs, outputs)
-
-model = unet_model()
 model.load_weights(WEIGHTS_PATH)
+print("loaded success")
 
 # ---------------- API ----------------
 @app.route("/predict", methods=["POST"])
 def predict():
+    if "image" not in request.files:
+        return jsonify({"error": "no images provided"}),400
+
     file = request.files["image"]
 
     image = Image.open(file).convert("RGB")
-    image = image.resize(TARGET_SIZE)
-    img = np.array(image) / 255.0
-    img = np.expand_dims(img, axis=0)
+    original_img = np.array(image)
 
-    prediction = model.predict(img)[0]
+    resized_img = cv2.resize(original_img, TARGET_SIZE)
+    preprocessed_img = preprocess_input(resized_img)
+    img_batch = np.expand_dims(preprocessed_img, axis=0)
 
-    crack_mask = (prediction[:, :, 0] > 0.9).astype(np.uint8)
-    rust_mask  = (prediction[:, :, 1] > 0.9).astype(np.uint8)
+    pred_mask = model.predict(img_batch)[0, :, :, 0]
+    corrosion_mask = (pred_mask > THRESHOLD).astype(np.uint8)
+
+    corrosion_mask_resized = cv2.resize(
+        corrosion_mask,
+        (original_img.shape[1], original_img.shape[0]),
+        interpolation=cv2.INTER_NEAREST
+    )
+
+    rust_mask, crack_mask = detect_rust_and_cracks(
+        original_img,
+        corrosion_mask_resized
+    )
+
+    crack_overlay = original_img.copy()
+    crack_overlay[crack_mask > 0] = [0, 255, 255]
+
+    rust_overlay = original_img.copy()
+    rust_overlay[rust_mask > 0] = [0, 255, 0]
 
     return jsonify({
+        "rust_pixels": int(np.sum(rust_mask)),
         "crack_pixels": int(np.sum(crack_mask)),
-        "rust_pixels": int(np.sum(rust_mask))
+
+        "original_image": image_to_base64(original_img),
+        "corrosion_mask": image_to_base64(corrosion_mask_resized * 255),
+        "crack_overlay": image_to_base64(crack_overlay),
+        "rust_overlay": image_to_base64(rust_overlay),
     })
 
 if __name__ == "__main__":
