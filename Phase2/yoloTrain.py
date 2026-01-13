@@ -1,217 +1,272 @@
+# PyTorch version of UNet corrosion training
 import os
-import json
 import cv2
+import json
 import torch
+import random
 import numpy as np
-from glob import glob
 from torch import nn
 from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as T
 from torchvision.models import resnet50
-import torch.nn.functional as F
+from pycocotools.coco import COCO
+from tqdm import tqdm
 
-# Check GPU
+# ---------------------------
+# GPU setup
+# ---------------------------
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
-# ----------------------------
-# Dataset
-# ----------------------------
-TARGET_SIZE = (1024, 1024)
-TARGET_LABELS = ["Crack", "Rust"]
-NUM_TARGET_CLASSES = len(TARGET_LABELS)
+# ---------------------------
+# Hyperparameters
+# ---------------------------
+TARGET_SIZE = (512, 512)
+BATCH_SIZE = 4
+NUM_CLASSES = 1
+EPOCHS = 100
+LEARNING_RATE = 1e-4
 
-class CrackRustDataset(Dataset):
-    def __init__(self, img_dir, json_dir, augment=False):
-        self.img_paths = sorted(glob(os.path.join(img_dir, '*.jpg')))
-        self.json_dir = json_dir
+# ---------------------------
+# Rasterize COCO annotations
+# ---------------------------
+def rasterize_coco_annotations(anns, target_size, target_labels=["corrosion"]):
+    H, W = target_size
+    mask = np.zeros((H, W, len(target_labels)), dtype=np.uint8)
+    label_to_channel = {label: i for i, label in enumerate(target_labels)}
+
+    for ann in anns:
+        category_name = ann['category_name']
+        if category_name in label_to_channel:
+            channel_idx = label_to_channel[category_name]
+            for seg in ann['segmentation']:
+                pts = np.array(seg).reshape(-1, 2).astype(np.int32)
+                temp_mask = np.zeros((H, W), dtype=np.uint8)
+                cv2.fillPoly(temp_mask, [pts], 1)
+                mask[:, :, channel_idx] = np.maximum(mask[:, :, channel_idx], temp_mask)
+    return mask
+
+# ---------------------------
+# Dataset
+# ---------------------------
+class CocoSegmentationDataset(Dataset):
+    def __init__(self, img_dir, coco_json, target_size=(512,512), augment=False):
+        self.coco = COCO(coco_json)
+        self.img_dir = img_dir
+        self.image_ids = self.coco.getImgIds()
+        self.target_size = target_size
         self.augment = augment
+
+        # Build image path -> annotations dict
+        self.img_paths = []
+        self.anns_dict = {}
+        cat_id_to_name = {cat['id']: cat['name'] for cat in self.coco.loadCats(self.coco.getCatIds())}
+
+        for img_id in self.image_ids:
+            img_info = self.coco.loadImgs(img_id)[0]
+            img_filename = img_info['file_name']
+            img_path = os.path.join(img_dir, img_filename)
+            if os.path.exists(img_path):
+                self.img_paths.append(img_path)
+                ann_ids = self.coco.getAnnIds(imgIds=img_id)
+                anns = self.coco.loadAnns(ann_ids)
+                for ann in anns:
+                    ann['category_name'] = cat_id_to_name[ann['category_id']]
+                self.anns_dict[img_path] = anns
+            else:
+                print(f"Warning: {img_path} not found")
+
+        print(f"Collected {len(self.img_paths)} images from {img_dir}")
+
+        # Augmentations
+        self.geometric_aug = T.Compose([
+            T.RandomHorizontalFlip(),
+            T.RandomRotation(degrees=3),
+            T.RandomResizedCrop(target_size, scale=(0.9,1.0))
+        ])
+        self.photometric_aug = T.Compose([
+            T.ColorJitter(brightness=0.1, contrast=0.2)
+        ])
+        self.to_tensor = T.ToTensor()
 
     def __len__(self):
         return len(self.img_paths)
 
-    def rasterize_polygon_to_mask(self, json_path):
-        with open(json_path, 'r') as f:
-            data = json.load(f)
-
-        H, W = data['imageHeight'], data['imageWidth']
-        mask = np.zeros((NUM_TARGET_CLASSES, H, W), dtype=np.uint8)
-        label_to_channel = {label: i for i, label in enumerate(TARGET_LABELS)}
-
-        try:
-            for shape in data['shapes']:
-                label = shape['label']
-                if label in label_to_channel:
-                    ch = label_to_channel[label]
-                    points = np.array(shape['points'], np.int32)
-                    temp_mask = np.zeros((H, W), np.uint8)
-                    cv2.fillPoly(temp_mask, [points.reshape((-1,1,2))], 1)
-                    mask[ch] = np.maximum(mask[ch], temp_mask)
-        except Exception as e:
-            print(f"CRITICAL RASTERIZATION ERROR in {json_path}: {e}")
-            mask = np.zeros((NUM_TARGET_CLASSES, *TARGET_SIZE), dtype=np.uint8)
-
-        # Resize to target
-        resized_mask = np.zeros((NUM_TARGET_CLASSES, *TARGET_SIZE), dtype=np.uint8)
-        for i in range(NUM_TARGET_CLASSES):
-            resized_mask[i] = cv2.resize(mask[i], TARGET_SIZE[::-1], interpolation=cv2.INTER_AREA)
-        return resized_mask.astype(np.float32)
-
     def __getitem__(self, idx):
         img_path = self.img_paths[idx]
-        base_name = os.path.basename(img_path).split('.')[0]
-        json_path = os.path.join(self.json_dir, base_name + '.json')
+        anns = self.anns_dict[img_path]
 
+        # Load image
         img = cv2.imread(img_path)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = cv2.resize(img, TARGET_SIZE)
-        img = img.astype(np.float32) / 255.0  # Normalize 0-1
+        img = cv2.resize(img, self.target_size)
 
-        mask = self.rasterize_polygon_to_mask(json_path)
+        # Load mask
+        mask = rasterize_coco_annotations(anns, self.target_size)
+        mask = mask[:, :, 0]  # single channel
+
+        # Convert to PIL for torchvision transforms
+        import PIL.Image as Image
+        img = Image.fromarray(img)
+        mask = Image.fromarray(mask*255)
 
         if self.augment:
-            # Simple augment: horizontal flip
-            if np.random.rand() > 0.5:
-                img = np.fliplr(img).copy()
-                mask = np.fliplr(mask).copy()
-            # Random rotation
-            angle = np.random.uniform(-10, 10)
-            M = cv2.getRotationMatrix2D((TARGET_SIZE[1]//2, TARGET_SIZE[0]//2), angle, 1.0)
-            img = cv2.warpAffine(img, M, TARGET_SIZE)
-            for i in range(NUM_TARGET_CLASSES):
-                mask[i] = cv2.warpAffine(mask[i], M, TARGET_SIZE)
+            seed = np.random.randint(2147483647)
+            random.seed(seed)
+            torch.manual_seed(seed)
+            img = self.geometric_aug(img)
+            random.seed(seed)
+            torch.manual_seed(seed)
+            mask = self.geometric_aug(mask)
 
-        img = torch.tensor(img.transpose(2,0,1), dtype=torch.float32)
-        mask = torch.tensor(mask, dtype=torch.float32)
+            img = self.photometric_aug(img)
+
+        img = self.to_tensor(img)
+        mask = self.to_tensor(mask)
+        mask = (mask > 0.5).float()  # ensure binary mask
+
         return img, mask
 
-# ----------------------------
-# Model: UNet with ResNet50 encoder
-# ----------------------------
-class UNetResNet50(nn.Module):
-    def __init__(self, num_classes=NUM_TARGET_CLASSES, pretrained=True):
+# ---------------------------
+# UNet Model (ResNet50 encoder)
+# ---------------------------
+class ConvBlock(nn.Module):
+    def __init__(self, in_ch, out_ch):
         super().__init__()
-        resnet = resnet50(weights='DEFAULT' if pretrained else None)
-
-        self.encoder0 = nn.Sequential(resnet.conv1, resnet.bn1, resnet.relu)
-        self.encoder1 = nn.Sequential(resnet.maxpool, resnet.layer1)
-        self.encoder2 = resnet.layer2
-        self.encoder3 = resnet.layer3
-        self.encoder4 = resnet.layer4
-
-        self.center = nn.Sequential(
-            nn.Conv2d(2048, 1024, 3, padding=1),
+        self.block = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, 3, padding=1),
+            nn.BatchNorm2d(out_ch),
             nn.ReLU(inplace=True),
-            nn.Conv2d(1024, 1024, 3, padding=1),
+            nn.Conv2d(out_ch, out_ch, 3, padding=1),
+            nn.BatchNorm2d(out_ch),
             nn.ReLU(inplace=True)
         )
+    def forward(self, x):
+        return self.block(x)
 
-        self.up4 = self.up_block(1024, 512)
-        self.up3 = self.up_block(512, 256)
-        self.up2 = self.up_block(256, 128)
-        self.up1 = self.up_block(128, 64)
-        self.up0 = self.up_block(64, 64)
+class UNet(nn.Module):
+    def __init__(self, num_classes=1):
+        super().__init__()
+        base_model = resnet50(weights="IMAGENET1K_V1")
+        self.encoder_layers = nn.ModuleList([
+            nn.Sequential(base_model.conv1, base_model.bn1, base_model.relu), #64
+            nn.Sequential(base_model.maxpool, base_model.layer1), #256
+            base_model.layer2, #512
+            base_model.layer3, #1024
+            base_model.layer4  #2048
+        ])
+        self.center = ConvBlock(2048, 512)
+        self.dec4 = ConvBlock(512+1024, 512)
+        self.dec3 = ConvBlock(512+512, 256)
+        self.dec2 = ConvBlock(256+256, 128)
+        self.dec1 = ConvBlock(128+64, 64)
         self.final = nn.Conv2d(64, num_classes, 1)
 
-    def up_block(self, in_channels, out_channels):
-        return nn.Sequential(
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-            nn.Conv2d(in_channels, out_channels, 3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, 3, padding=1),
-            nn.ReLU(inplace=True)
-        )
+        self.upsample = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
 
     def forward(self, x):
-        e0 = self.encoder0(x)
-        e1 = self.encoder1(e0)
-        e2 = self.encoder2(e1)
-        e3 = self.encoder3(e2)
-        e4 = self.encoder4(e3)
+        e0 = self.encoder_layers[0](x)
+        e1 = self.encoder_layers[1](e0)
+        e2 = self.encoder_layers[2](e1)
+        e3 = self.encoder_layers[3](e2)
+        e4 = self.encoder_layers[4](e3)
 
-        center = self.center(e4)
+        c = self.center(e4)
 
-        d4 = self.up4(center) + e4
-        d3 = self.up3(d4) + e3
-        d2 = self.up2(d3) + e2
-        d1 = self.up1(d2) + e1
-        d0 = self.up0(d1) + e0
+        d4 = self.upsample(c)
+        d4 = torch.cat([d4, e3], dim=1)
+        d4 = self.dec4(d4)
 
-        out = self.final(d0)
+        d3 = self.upsample(d4)
+        d3 = torch.cat([d3, e2], dim=1)
+        d3 = self.dec3(d3)
+
+        d2 = self.upsample(d3)
+        d2 = torch.cat([d2, e1], dim=1)
+        d2 = self.dec2(d2)
+
+        d1 = self.upsample(d2)
+        d1 = torch.cat([d1, e0], dim=1)
+        d1 = self.dec1(d1)
+
+        out = self.final(d1)
         out = torch.sigmoid(out)
         return out
 
-# ----------------------------
+# ---------------------------
 # Losses
-# ----------------------------
-def dice_loss(y_pred, y_true, smooth=1e-6):
-    y_pred = (y_pred > 0.5).float()
-    intersection = (y_pred * y_true).sum(dim=(1,2,3))
-    union = y_pred.sum(dim=(1,2,3)) + y_true.sum(dim=(1,2,3))
-    return 1 - (intersection + smooth) / (union + smooth)
+# ---------------------------
+class DiceBCE(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.bce = nn.BCELoss()
 
-bce_loss = nn.BCELoss()
+    def forward(self, pred, target):
+        smooth = 1e-6
+        pred_flat = pred.view(-1)
+        target_flat = target.view(-1)
+        intersection = (pred_flat * target_flat).sum()
+        dice_loss = 1 - (2*intersection + smooth)/(pred_flat.sum() + target_flat.sum() + smooth)
+        bce_loss = self.bce(pred, target)
+        return dice_loss + bce_loss
 
-def focal_loss(y_pred, y_true, alpha=0.8, gamma=2.0):
-    y_pred = torch.clamp(y_pred, 1e-6, 1-1e-6)
-    pt = y_pred * y_true + (1 - y_pred)*(1 - y_true)
-    loss = -alpha * (1 - pt)**gamma * torch.log(pt)
-    return loss.mean()
+# ---------------------------
+# Data loaders
+# ---------------------------
+train_dataset = CocoSegmentationDataset("../Data/train", "../Data/train/_annotations.coco.json", augment=True)
+val_dataset = CocoSegmentationDataset("../Data/valid", "../Data/valid/_annotations.coco.json", augment=False)
 
-def weighted_loss(y_pred, y_true):
-    # per-channel weights
-    crack_weight = 8.0
-    rust_weight = 1.0
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, pin_memory=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=4, pin_memory=True)
 
-    yt_c = y_true[:,0:1]
-    yp_c = y_pred[:,0:1]
-    yt_r = y_true[:,1:2]
-    yp_r = y_pred[:,1:2]
+# ---------------------------
+# Training loop
+# ---------------------------
+model = UNet(num_classes=NUM_CLASSES).to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+criterion = DiceBCE()
 
-    crack_loss = 0.4*dice_loss(yp_c, yt_c) + 0.4*focal_loss(yp_c, yt_c) + 0.2*bce_loss(yp_c, yt_c)
-    rust_loss = 0.5*dice_loss(yp_r, yt_r) + 0.5*bce_loss(yp_r, yt_r)
+best_val_iou = 0
 
-    return crack_weight*crack_loss + rust_weight*rust_loss
-
-# ----------------------------
-# DataLoaders
-# ----------------------------
-train_dataset = CrackRustDataset("../Data/images/train", "../Data/annotations/train", augment=True)
-val_dataset   = CrackRustDataset("../Data/images/validation", "../Data/annotations/validation", augment=False)
-
-train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=4)
-val_loader   = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=4)
-
-# ----------------------------
-# Training Loop
-# ----------------------------
-model = UNetResNet50().to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
-EPOCHS = 100
+def mean_iou(pred, target, threshold=0.5):
+    pred = (pred > threshold).float()
+    intersection = (pred * target).sum()
+    union = pred.sum() + target.sum() - intersection
+    return (intersection + 1e-6) / (union + 1e-6)
 
 for epoch in range(EPOCHS):
     model.train()
     train_loss = 0
-    for imgs, masks in train_loader:
+    for imgs, masks in tqdm(train_loader):
         imgs, masks = imgs.to(device), masks.to(device)
         optimizer.zero_grad()
-        outputs = model(imgs)
-        loss = weighted_loss(outputs, masks)
+        preds = model(imgs)
+        loss = criterion(preds, masks)
         loss.backward()
         optimizer.step()
-        train_loss += loss.item()
-    train_loss /= len(train_loader)
+        train_loss += loss.item()*imgs.size(0)
+    train_loss /= len(train_loader.dataset)
 
+    # Validation
     model.eval()
     val_loss = 0
+    val_iou = 0
     with torch.no_grad():
         for imgs, masks in val_loader:
             imgs, masks = imgs.to(device), masks.to(device)
-            outputs = model(imgs)
-            loss = weighted_loss(outputs, masks)
-            val_loss += loss.item()
-    val_loss /= len(val_loader)
-    print(f"Epoch [{epoch+1}/{EPOCHS}], Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+            preds = model(imgs)
+            loss = criterion(preds, masks)
+            val_loss += loss.item()*imgs.size(0)
+            val_iou += mean_iou(preds, masks).item()*imgs.size(0)
+    val_loss /= len(val_loader.dataset)
+    val_iou /= len(val_loader.dataset)
 
-torch.save(model.state_dict(), "unet_crack_rust.pth")
-print("Training finished and weights saved.")
+    print(f"Epoch {epoch+1}/{EPOCHS} | Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f} | Val IOU: {val_iou:.4f}")
+
+    # Save best model
+    if val_iou > best_val_iou:
+        best_val_iou = val_iou
+        torch.save(model.state_dict(), "best_unet_corrosion.pth")
+        print("Saved best model!")
+
+print("Training finished.")

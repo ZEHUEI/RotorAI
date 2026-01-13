@@ -3,6 +3,7 @@ import React from 'react';
 import FullBleedDivider from '@/Components/FullBleedDivider';
 import BlogImage from '@/Components/BlogImage';
 import BlogPosts from '@/Components/BlogPosts';
+import { div } from 'framer-motion/client';
 // add /Blog
 
 const Data = [
@@ -16,63 +17,63 @@ const Data = [
   {
     id: 2,
     title: 'Exodus',
-    image: './blogimg/Genesis.png',
+    image: './blogimg/Exodus.png',
     text: '',
     date: '',
   },
   {
     id: 3,
     title: 'Leviticus',
-    image: './blogimg/Genesis.png',
+    image: './blogimg/Leviticus.png',
     text: '',
     date: '',
   },
   {
     id: 4,
     title: 'Deuteronomy',
-    image: './blogimg/Genesis.png',
+    image: './blogimg/Deuteronomy.png',
     text: '',
     date: '',
   },
   {
     id: 5,
     title: 'Kings',
-    image: './blogimg/Genesis.png',
+    image: './blogimg/Kings.png',
     text: '',
     date: '',
   },
   {
     id: 6,
     title: 'Chronicles',
-    image: './blogimg/Genesis.png',
+    image: './blogimg/Chronicles.png',
     text: '',
     date: '',
   },
   {
     id: 7,
     title: 'Psalms',
-    image: './blogimg/Genesis.png',
+    image: './blogimg/Psalms.jpg',
     text: '',
     date: '',
   },
   {
     id: 8,
     title: 'Romans',
-    image: './blogimg/Genesis.png',
+    image: './blogimg/Romans.png',
     text: '',
     date: '',
   },
   {
     id: 9,
     title: 'Thessalonians',
-    image: './blogimg/Genesis.png',
+    image: './blogimg/Thessalonians.jpg',
     text: '',
     date: '',
   },
   {
     id: 10,
     title: 'Revelation',
-    image: './blogimg/Genesis.png',
+    image: './blogimg/Revelation.jpg',
     text: '',
     date: '',
   },
@@ -127,7 +128,21 @@ const Blog = () => {
       <div className="w-full h-[0.1px] mt-15 mb-15 bg-white/20" />
 
       {/*Nx3 grid map this*/}
-      <div className="grid grid-cols-3 items-center justify-between gap-12">
+      <div className="grid grid-cols-3 items-center justify-between gap-6">
+        {[...Data]
+          .reverse()
+          .slice(1)
+          .map((item) => (
+            <div key={item.id}>
+              <BlogPosts
+                title={item.title}
+                image={item.image}
+                text={item.text}
+                date={item.date}
+              />
+            </div>
+          ))}
+        {/* <div className="w-full h-[450px] border-2 border-amber-300" />
         <div className="w-full h-[450px] border-2 border-amber-300" />
         <div className="w-full h-[450px] border-2 border-amber-300" />
         <div className="w-full h-[450px] border-2 border-amber-300" />
@@ -135,8 +150,7 @@ const Blog = () => {
         <div className="w-full h-[450px] border-2 border-amber-300" />
         <div className="w-full h-[450px] border-2 border-amber-300" />
         <div className="w-full h-[450px] border-2 border-amber-300" />
-        <div className="w-full h-[450px] border-2 border-amber-300" />
-        <div className="w-full h-[450px] border-2 border-amber-300" />
+        <div className="w-full h-[450px] border-2 border-amber-300" /> */}
       </div>
 
       <FullBleedDivider />
