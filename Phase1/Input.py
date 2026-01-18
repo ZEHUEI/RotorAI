@@ -78,8 +78,7 @@ def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.1):
 
 # --- Test Execution Block-----------------------------------------------------------
 
-TESTING123 = "../Outcomes/Input/motor3.jpg"
-#0078 rust and 0089 cracks
+TESTING123 = "../Outcomes/Input/motor2.jpg"
 TEST_IMAGE_PATH = "../Data/test/1_58_jpg.rf.926f79e868a36f37b8bbf79c3e4d4fa6.jpg"
 
 if os.path.exists(TESTING123):

@@ -1,6 +1,7 @@
 import os
 os.environ["SM_FRAMEWORK"] = "tf.keras"
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import tensorflow as tf
 from PIL import Image
 import numpy as np
@@ -16,6 +17,7 @@ from io import BytesIO
 from Phase1.tensorTrain import detect_rust_and_cracks, preprocess_input
 
 app = Flask(__name__)
+CORS(app)
 
 def image_to_base64(img_np):
     img_pil = Image.fromarray(img_np)
@@ -29,13 +31,13 @@ BACKBONE = "resnet50"
 WEIGHTS_FILE = "best_unet_corrosion.h5"
 THRESHOLD = 0.1
 
-WEIGHTS_PATH = r"C:\Users\Ze Huei\PycharmProjects\RotorAI\Phase1\best_unet_weights.h5"
+WEIGHTS_PATH = r"C:\Users\Ze Huei\PycharmProjects\RotorAI\Phase1\best_unet2_corrosion.h5"
 
 preprocess_input = sm.get_preprocessing(BACKBONE)
 
 base_model = Unet(
     backbone_name=BACKBONE,
-    encoder_weights=None,
+    encoder_weights='imagenet',
     classes=1,
     activation='sigmoid',
     input_shape=TARGET_SIZE + (3,)
@@ -80,8 +82,11 @@ def predict():
         corrosion_mask_resized
     )
 
+    crack_mask = (crack_mask > 0).astype(np.uint8) * 255
+
+    #currently black and white
     crack_overlay = original_img.copy()
-    crack_overlay[crack_mask > 0] = [0, 255, 255]
+    crack_overlay[crack_mask == 255] = [0, 255, 255]
 
     rust_overlay = original_img.copy()
     rust_overlay[rust_mask > 0] = [0, 255, 0]

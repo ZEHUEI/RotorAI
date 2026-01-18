@@ -1,6 +1,7 @@
 Data/
 Archive/
 Ignore/
+yolo_corrosion/
 *.h5
 *.pt
 *.pth

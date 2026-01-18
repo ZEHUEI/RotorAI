@@ -38,17 +38,16 @@ const Features = [
 const Stack = [
   {
     id: 1,
-    text1: 'Backend & AI',
+    text1: 'AI',
     text2: 'Python 3.x',
-    text3: 'TensorFlow / Keras - Deep learning model development',
+    text3: 'Tensorflwow, Keras- (CLAHE and Balckhat Morphology)',
     text4: 'OpenCV / YOLO - Image and video processing',
   },
   {
     id: 2,
-    text1: 'Visualization',
-    text2: 'Matplotlib - Data and result visualization',
-    text3:
-      'Gaussian Splatting - PHD Research ~ grid plotting then 3D modeling with defects',
+    text1: '',
+    text2: '',
+    text3: '',
     text4: '',
   },
   {

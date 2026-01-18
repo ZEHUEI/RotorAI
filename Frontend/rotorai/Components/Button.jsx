@@ -17,13 +17,14 @@ const ShineVariants = {
 
 //this will activate the backend for flash when press ( on press ) set cpooldown until it is finish
 
-const Button = () => {
+const Button = ({ onClick, disabled }) => {
   return (
     <>
-      <div className="w-[15px] h-full skew-x-30 bg-white"></div>
       <button
+        onClick={disabled ? undefined : onClick}
+        disabled={disabled}
         type="button"
-        className="relative w-40 h-16 font-AT cursor-pointer border-0 border-amber-300"
+        className="relative w-40 h-16 font-AT border-0 border-amber-300"
       >
         {/*last bottom */}
         <div className="absolute -inset-x-[2px] top-4 -left-[1px] h-full bg-[#3a3a3a] border-2 border-[#525252] rounded-full -z-1" />
@@ -39,8 +40,9 @@ const Button = () => {
           <motion.div
             variants={ButtonVariants}
             initial="rest"
-            whileTap="pressed"
-            className="relative z-10 flex items-center justify-center w-full h-full bg-[#0a0a0a] text-lg border-2 border-[#525252] rounded-full overflow-hidden"
+            whileTap={!disabled ? 'pressed' : 'rest'}
+            className={`relative z-10 flex items-center justify-center w-full h-full bg-[#0a0a0a] text-lg border-2 border-[#525252] rounded-full overflow-hidden
+    ${disabled ? 'cursor-not-allowed' : ''}`}
           >
             {/* shine */}
             <motion.div
@@ -48,7 +50,7 @@ const Button = () => {
               style={{ skewX: -25 }}
               className="absolute top-0 left-0 w-[15px] h-full bg-white/60 pointer-events-none"
             />
-            RUN
+            {disabled ? 'LOCK' : 'RUN'}
           </motion.div>
         </>
       </button>
