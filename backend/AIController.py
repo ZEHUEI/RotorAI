@@ -29,7 +29,7 @@ def image_to_base64(img_np):
 TARGET_SIZE = (512, 512)
 BACKBONE = "resnet50"
 WEIGHTS_FILE = "best_unet_corrosion.h5"
-THRESHOLD = 0.1
+THRESHOLD = 0.01
 
 WEIGHTS_PATH = r"C:\Users\Ze Huei\PycharmProjects\RotorAI\Phase1\best_unet2_corrosion.h5"
 

@@ -46,7 +46,7 @@ except tf.errors.NotFoundError:
 preprocess_input = sm.get_preprocessing(BACKBONE)
 
 
-def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.2):
+def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.1):
     # 1. Load original image
     img_raw = tf.io.read_file(image_path)
     img_decoded = tf.image.decode_jpeg(img_raw, channels=3)
