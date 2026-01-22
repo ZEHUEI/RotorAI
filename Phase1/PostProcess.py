@@ -8,8 +8,16 @@ def detect_rust_and_cracks(image,corrosion_mask):
     lab = cv2.cvtColor(image,cv2.COLOR_RGB2Lab)
 
     #L = lightness, a channel= X G/Y b channel= X Y/Dark brown
-    rust_mask = cv2.inRange(lab, np.array([40,135,140]), np.array([200, 180, 190]))
+    rust_mask = cv2.inRange(lab, np.array([40,135,140]), np.array([110, 180, 190]))
     rust_mask = cv2.bitwise_and(rust_mask, rust_mask, mask=corrosion_mask)
+
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(rust_mask, connectivity=8)
+    clean_rust = np.zeros_like(rust_mask)
+    for i in range(1, num_labels):
+        area = stats[i, cv2.CC_STAT_AREA]
+        if area > 100:  # remove tiny patches; tune this
+            clean_rust[labels == i] = 255
+    rust_mask = clean_rust
 
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
 
@@ -48,6 +56,9 @@ def detect_rust_and_cracks(image,corrosion_mask):
             # Convex Hull and Solidity
             convex_hull_area = cv2.contourArea(cv2.convexHull(cnt))
             solidity = float(area) / (convex_hull_area + 1e-5)
+
+            if area > 300 and solidity < 0.9:
+                clean_rust[labels == i] = 255
 
             # --- NEW TUNING LOGIC ---
             # 1. High aspect ratio (clear straight lines)

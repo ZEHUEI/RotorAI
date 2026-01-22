@@ -1,5 +1,5 @@
 import os
-from Phase1.tensorTrain import detect_rust_and_cracks
+from Phase1.PostProcess import detect_rust_and_cracks
 os.environ["SM_FRAMEWORK"] = "tf.keras"
 import cv2
 import tensorflow as tf
@@ -46,7 +46,7 @@ except tf.errors.NotFoundError:
 preprocess_input = sm.get_preprocessing(BACKBONE)
 
 
-def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.1):
+def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.2):
     # 1. Load original image
     img_raw = tf.io.read_file(image_path)
     img_decoded = tf.image.decode_jpeg(img_raw, channels=3)
@@ -78,7 +78,7 @@ def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.1):
 
 # --- Test Execution Block-----------------------------------------------------------
 
-TESTING123 = "../Outcomes/Input/motor2.jpg"
+TESTING123 = "../Outcomes/Input/qc.jpg"
 TEST_IMAGE_PATH = "../Data/test/1_58_jpg.rf.926f79e868a36f37b8bbf79c3e4d4fa6.jpg"
 
 if os.path.exists(TESTING123):

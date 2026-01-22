@@ -54,7 +54,7 @@ model = YOLO('yolo_corrosion/yolov8_corrosionV2/weights/best.pt')
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 # Load image
-image_bgr = cv2.imread("Outcomes/Input/zzz.jpg")
+image_bgr = cv2.imread("Outcomes/Input/qc.jpg")
 image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 boxed_image = image_bgr.copy()
 
@@ -68,7 +68,7 @@ kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25,25))
 face_mask_dilated = cv2.dilate(face_mask, kernel, iterations=1)
 
 # YOLO prediction
-results = model.predict("Outcomes/Input/zzz.jpg", conf=0.05, imgsz=1024)
+results = model.predict("Outcomes/Input/qc.jpg", conf=0.05, imgsz=1024)
 r = results[0]
 
 if r.boxes is not None and len(r.boxes) > 0:
