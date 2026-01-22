@@ -48,37 +48,40 @@ val_images = check_folder(val_img_dir)
 # -----------------------------
 # Convert COCO JSON -> YOLO txt
 # -----------------------------
-def coco_to_yolo(coco_json, img_dir, yolo_label_dir, target_labels):
-    if not os.path.exists(coco_json):
-        raise RuntimeError(f"COCO JSON file not found: {coco_json}")
+def coco_seg_to_yolo(coco_json, img_dir, yolo_label_dir, target_labels):
     os.makedirs(yolo_label_dir, exist_ok=True)
     with open(coco_json) as f:
         data = json.load(f)
 
     cat_name_to_id = {cat['name']: i for i, cat in enumerate(data['categories']) if cat['name'] in target_labels}
     img_id_to_filename = {img['id']: img['file_name'] for img in data['images']}
+    img_id_to_info = {img['id']: img for img in data['images']}
 
     for ann in data['annotations']:
         cat_name = [cat['name'] for cat in data['categories'] if cat['id']==ann['category_id']][0]
         if cat_name not in target_labels:
             continue
 
+        if "segmentation" not in ann:
+            continue
+
         img_file = img_id_to_filename[ann['image_id']]
         txt_file = os.path.join(yolo_label_dir, os.path.splitext(img_file)[0] + '.txt')
 
-        x, y, w, h = ann['bbox']
-        img_info = [img for img in data['images'] if img['id']==ann['image_id']][0]
+        img_info = img_id_to_info[ann['image_id']]
+        W, H = img_info['width'], img_info['height']
 
-        x_center = (x + w/2) / img_info['width']
-        y_center = (y + h/2) / img_info['height']
-        w_norm = w / img_info['width']
-        h_norm = h / img_info['height']
+        for seg in ann['segmentation']:
+            pts = np.array(seg,dtype=np.float32).reshape(-1, 2)
+            pts[:, 0] /= W
+            pts[:, 1] /= H
 
-        with open(txt_file, 'a') as f:
-            f.write(f"{cat_name_to_id[cat_name]} {x_center} {y_center} {w_norm} {h_norm}\n")
+            flat = pts.flatten()
+            with open(txt_file, 'a') as f:
+                f.write(str(cat_name_to_id[cat_name]) + " " + " ".join(map(str, flat)) + "\n")
 
-coco_to_yolo(train_json, train_img_dir, train_labels_dir, target_labels)
-coco_to_yolo(val_json, val_img_dir, val_labels_dir, target_labels)
+coco_seg_to_yolo(train_json, train_img_dir, train_labels_dir, target_labels)
+coco_seg_to_yolo(val_json, val_img_dir, val_labels_dir, target_labels)
 
 # -----------------------------
 # Check labels exist
@@ -113,7 +116,7 @@ print(f"YOLO dataset YAML created at {yaml_path}")
 # -----------------------------
 # Train YOLOv8
 # -----------------------------
-model = YOLO('yolov8n.pt')
+model = YOLO('yolov8s-seg.pt')
 
 print("Starting YOLO training...")
 model.train(
@@ -123,5 +126,5 @@ model.train(
     imgsz=img_size,
     lr0=1e-4,
     project='yolo_corrosion',
-    name='yolov8_corrosionV2'
+    name='yolov8_corrosionV4'
 )

@@ -14,7 +14,7 @@ from keras.layers import Lambda
 import base64
 from io import BytesIO
 
-from Phase1.tensorTrain import detect_rust_and_cracks, preprocess_input
+from Phase1.PostProcess import detect_rust_and_cracks
 
 app = Flask(__name__)
 CORS(app)
