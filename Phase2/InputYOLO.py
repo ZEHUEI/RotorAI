@@ -65,7 +65,7 @@ for (x, y, w, h) in faces:
     cv2.rectangle(face_mask, (x, y), (x + w, y + h), 255, -1)
 
 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25,25))
-face_mask_dilated = cv2.dilate(face_mask, kernel, iterations=1)
+face_mask_dilated = cv2.dilate(face_mask, kernel, iterations=3)
 
 # YOLO prediction
 results = model.predict("Outcomes/Input/qc.jpg", conf=0.05, imgsz=1024)
@@ -77,6 +77,10 @@ if r.boxes is not None and len(r.boxes) > 0:
         print(f"Box {i}: conf={conf}, coords={box}")
 
         x1, y1, x2, y2 = map(int, box)
+
+        roi = face_mask_dilated[y1:y2, x1:x2]
+        if np.any(roi):
+            continue
 
         box_mask = np.zeros(image_rgb.shape[:2], dtype=np.uint8)
         box_mask[y1:y2, x1:x2] = 255

@@ -1,6 +1,6 @@
 
-train: /mnt/c/Users/Ze Huei/PycharmProjects/RotorAI/Phase2/../Data/trainYOLO
-val: /mnt/c/Users/Ze Huei/PycharmProjects/RotorAI/Phase2/../Data/validYOLO
+train: /mnt/c/Users/Ze Huei/PycharmProjects/RotorAI/Phase2/../Data/trainYOLO/images
+val: /mnt/c/Users/Ze Huei/PycharmProjects/RotorAI/Phase2/../Data/validYOLO/images
 
 nc: 1
 names: ['corrosion']
