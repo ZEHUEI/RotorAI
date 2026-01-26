@@ -8,7 +8,7 @@ def detect_rust_and_cracks(image,corrosion_mask):
     lab = cv2.cvtColor(image,cv2.COLOR_RGB2Lab)
 
     #L = lightness, a channel= X G/Y b channel= X Y/Dark brown
-    rust_mask = cv2.inRange(lab, np.array([40,135,140]), np.array([120, 180, 190]))
+    rust_mask = cv2.inRange(lab, np.array([40,135,140]), np.array([120, 150, 190]))
     rust_mask = cv2.bitwise_and(rust_mask, rust_mask, mask=corrosion_mask)
 
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(rust_mask, connectivity=8)

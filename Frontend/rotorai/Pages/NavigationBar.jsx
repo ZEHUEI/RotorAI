@@ -8,6 +8,7 @@ const NavigationBar = () => {
 
   const items = [
     { label: 'ROTORAI', href: '/' },
+    { label: 'YOLO', href: '/yolo' },
     { label: 'ABOUT', href: '/about' },
     { label: 'BLOG', href: '/blog' },
   ];
