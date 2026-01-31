@@ -1,4 +1,6 @@
 import os
+
+from Phase2.YOLOapi import detect_frame
 os.environ["SM_FRAMEWORK"] = "tf.keras"
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -13,6 +15,7 @@ from segmentation_models import Unet
 from keras.layers import Lambda
 import base64
 from io import BytesIO
+from ultralytics import YOLO
 
 from Phase1.PostProcess import detect_rust_and_cracks
 
@@ -31,6 +34,7 @@ BACKBONE = "resnet50"
 THRESHOLD = 0.1
 
 WEIGHTS_PATH = r"C:\Users\Ze Huei\PycharmProjects\RotorAI\Phase1\best_unet2_corrosion.h5"
+yolo_model = YOLO('../yolo_corrosion/yolov8_corrosionV2/weights/best.pt')
 
 preprocess_input = sm.get_preprocessing(BACKBONE)
 
@@ -99,6 +103,23 @@ def predict():
         "crack_overlay": image_to_base64(crack_overlay),
         "rust_overlay": image_to_base64(rust_overlay),
     })
+
+#------YOLO API
+def decode_image(data_url):
+    header, encoded = data_url.split(",", 1)
+    img_bytes = base64.b64decode(encoded)
+    np_arr = np.frombuffer(img_bytes, np.uint8)
+    return cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+@app.route("/detect", methods=["POST"])
+def detect():
+    data = request.json
+    img = decode_image(data["image"])
+    print("Image shape:", img.shape)
+    detections = detect_frame(img)
+    print("Detections:", detections)
+
+    return jsonify(detections)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3001, debug=True)
