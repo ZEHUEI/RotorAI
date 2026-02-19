@@ -1,6 +1,5 @@
 'use client';
 import { useState, useRef } from 'react';
-import { motion } from 'framer-motion';
 import Button from '@/Components/Button';
 import FullBleedDivider from '@/Components/FullBleedDivider';
 import axios from 'axios';
