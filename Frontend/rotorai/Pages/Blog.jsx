@@ -148,6 +148,7 @@ const Blog = () => {
                 image={item.image}
                 text={item.text}
                 date={item.date}
+                postID={item.id}
               />
             </div>
           ))}
