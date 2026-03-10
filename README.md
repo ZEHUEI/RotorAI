@@ -9,31 +9,71 @@ It aims to assist engineers and maintenance teams by automating defect detection
 
 ## 🚀 Features
 
-- 🎥 **Video-based defect detection** using TensorFlow and OpenCV  
-- 🧠 **Deep learning model** trained on images of normal, rusted, and cracked motors  
-- 🧩 **3D visualization** of detected defects on motor models  
-- 📊 **Real-time analysis** via live camera or uploaded video  
-- 🧰 **Scalable design** for integration into industrial maintenance systems  
+- 🎥 **Video-based defect detection** using YOLO and OpenCV
+- 🧠 **Deep learning models** built with TensorFlow, Keras, and PyTorch
+- ⚡ **Real-time inference** from live camera feeds or uploaded video
+- 🧩 **3D Gaussian Splatting visualization** to highlight detected defects on motor models
+- 🌐 **Web-based dashboard** for monitoring results and inspection reports
+- ☁️ **Cloud deployment** enabling scalable industrial inspection workflows
 
 ---
 
-## 🧠 Project Goals
+# 🧠 Project Goals
 
-1. Collect and preprocess image/video data of motors (normal, rusted, cracked)  
-2. Train and evaluate TensorFlow-based models for defect classification  
-3. Implement a pipeline for **real-time defect detection** from live video  
-4. Map detected areas onto a **3D motor visualization**  
-5. Develop a simple **user interface** for monitoring and results display  
+- Collect and preprocess image/video datasets of motors (normal, rusted, cracked)
+- Train and evaluate deep learning models for **defect detection and classification**
+- Build a **real-time video processing pipeline** for automated inspection
+- Map detected defect regions onto a **3D reconstructed motor surface**
+- Develop an **interactive web interface** for engineers to monitor inspections
+
+---
+
+# 🧰 Tech Stack
+
+## AI / Machine Learning
+- Python
+- TensorFlow / Keras
+- PyTorch
+- YOLO (Object Detection)
+- OpenCV
+
+## 3D Visualization
+- 3D Gaussian Splatting
+
+## Backend
+- Flask API
+- Google Cloud Run
+
+## Frontend
+- JavaScript
+- Node.js
+- Vercel
 
 ---
 
-## 🧰 Tech Stack
+# 🏗 System Architecture
 
-- **Python 3.x**
-- **TensorFlow / Keras** – Deep learning model  
-- **OpenCV/YOLO** – Image and video processing  
-- **Matplotlib / Plotly** – Visualization  
-- **Blender / Three.js (optional)** – 3D visualization  
-- **Jupyter Notebook / Streamlit** – Prototyping & UI  
+1. **Video Input**
+   - Live camera feed or uploaded inspection footage
 
----
+2. **Frame Processing**
+   - OpenCV extracts frames from video streams
+
+3. **Object Detection**
+   - YOLO detects potential motor defects (rust, cracks, corrosion)
+
+4. **Model Classification**
+   - TensorFlow / PyTorch models classify defect types
+
+5. **3D Visualization**
+   - Detected defects are mapped onto a **3D Gaussian Splatting motor model**
+
+6. **Backend API**
+   - Flask handles inference requests and serves results
+
+7. **Frontend Dashboard**
+   - JavaScript + Node.js interface for visualization and monitoring
+
+8. **Deployment**
+   - Backend → Google Cloud Run  
+   - Frontend → Vercel
