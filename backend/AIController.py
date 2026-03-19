@@ -34,7 +34,7 @@ BACKBONE = "resnet50"
 THRESHOLD = 0.1
 
 WEIGHTS_PATH = "Phase1/best_unet2_corrosion.h5"
-yolo_model = YOLO('../yolo_corrosion/yolov8_corrosionV2/weights/best.pt')
+yolo_model = YOLO('yolo_corrosion/yolov8_corrosionV2/weights/best.pt')
 
 preprocess_input = sm.get_preprocessing(BACKBONE)
 
