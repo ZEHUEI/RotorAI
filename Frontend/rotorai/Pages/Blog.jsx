@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import FullBleedDivider from '@/Components/FullBleedDivider';
 import BlogPosts from '@/Components/BlogPosts';
-// add /Blog
+import { useRouter } from 'next/navigation';
 
 const Data = [
   {
@@ -79,10 +79,11 @@ const Data = [
 
 const BigFeaturePost = ({ post }) => {
   if (!post) return null;
+  const router = useRouter();
   return (
     <div
-      className="w-full h-[300px] border-0 border-amber-300 hover:cursor-pointer"
-      // onClick={}
+      className="w-full h-[300px] border-0 border-amber-300 hover:cursor-pointer transition-all hover:scale-[1.02] hover:shadow-xl"
+      onClick={() => router.push(`/blog/posts?id=10`)}
     >
       {/*3 columns using flex */}
       <div className="flex flex-row h-full font-Inter ">
