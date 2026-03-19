@@ -1,15 +1,11 @@
 flask==3.1.2
 flask-cors==6.0.2
 gunicorn==21.2.0
-
-numpy>=2.0.0
+numpy==1.26.4
 pillow
-opencv-python-headless
-
 tensorflow==2.15.0
 segmentation-models==1.0.1
+opencv-python-headless==4.9.0.80
 h5py
-
 ultralytics
-
 scikit-image
