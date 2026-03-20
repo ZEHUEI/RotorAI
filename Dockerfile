@@ -1,6 +1,6 @@
 FROM python:3.10
 
-WORKDIR /app
+WORKDIR /app/backend
 
 RUN apt-get update && apt-get install -y \
     libgl1 \
@@ -11,7 +11,7 @@ COPY backend/requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY backend .
+COPY backend ./backend
 
 COPY Phase1 ./Phase1
 COPY Phase2 ./Phase2
