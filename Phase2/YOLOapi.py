@@ -4,7 +4,11 @@ import cv2
 import numpy as np
 from Phase1.PostProcess import detect_rust_and_cracks
 
-model = YOLO("backend/yolo_corrosion/yolov8_corrosionV2/weights/best.pt")
+#--local model
+# model = YOLO("backend/yolo_corrosion/yolov8_corrosionV2/weights/best.pt")
+
+#--cloud model--
+model = YOLO("/tmp/best.pt")
 model.model.to("cpu")
 
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
