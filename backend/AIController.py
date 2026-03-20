@@ -1,25 +1,4 @@
 import os
-
-os.environ["SM_FRAMEWORK"] = "tf.keras"
-
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import tensorflow as tf
-from PIL import Image
-import numpy as np
-from tensorflow.keras import layers, models
-import cv2
-from PIL import Image
-import segmentation_models as sm
-from segmentation_models import Unet
-from keras.layers import Lambda
-import base64
-from io import BytesIO
-from ultralytics import YOLO
-
-from Phase1.PostProcess import detect_rust_and_cracks
-from Phase2.YOLOapi import detect_frame
-
 #--Google Cloud--
 from google.cloud import storage
 
@@ -44,13 +23,34 @@ def download_model():
 
 download_model()
 
+
+os.environ["SM_FRAMEWORK"] = "tf.keras"
+
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import tensorflow as tf
+from PIL import Image
+import numpy as np
+from tensorflow.keras import layers, models
+import cv2
+from PIL import Image
+import segmentation_models as sm
+from segmentation_models import Unet
+from keras.layers import Lambda
+import base64
+from io import BytesIO
+from ultralytics import YOLO
+
+from Phase1.PostProcess import detect_rust_and_cracks
+from Phase2.YOLOapi import detect_frame
+
 #-- google cloud path
 yolo_model = YOLO(YOLO_MODEL_PATH)
+yolo_model.to("cpu")
 WEIGHTS_PATH = TENSOR_MODEL_PATH
 #--local path
 # WEIGHTS_PATH = "Phase1/best_unet2_corrosion.h5"
 # yolo_model = YOLO('yolo_corrosion/yolov8_corrosionV2/weights/best.pt')
-
 
 app = Flask(__name__)
 CORS(app)
@@ -146,7 +146,7 @@ def detect():
     data = request.json
     img = decode_image(data["image"])
     print("Image shape:", img.shape)
-    detections = detect_frame(img)
+    detections = detect_frame(img,yolo_model)
     print("Detections:", detections)
 
     return jsonify(detections)

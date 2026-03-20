@@ -4,13 +4,6 @@ import cv2
 import numpy as np
 from Phase1.PostProcess import detect_rust_and_cracks
 
-#--local model
-# model = YOLO("backend/yolo_corrosion/yolov8_corrosionV2/weights/best.pt")
-
-#--cloud model--
-model = YOLO("/tmp/best.pt")
-model.model.to("cpu")
-
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25, 25))
 
@@ -44,7 +37,7 @@ def process_roi(roi_mask, img_rgb, current_boxed_img, current_face_mask, w_img):
             detections.append({"x":cx,"y":cy,"w":cw,"h":ch,"label":"Cracks",})
     return detections
 
-def detect_frame(frame):
+def detect_frame(frame,model):
     h_img, w_img = frame.shape[:2]
     img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     boxed_image = frame.copy()
