@@ -6,6 +6,7 @@ pillow
 tensorflow==2.15.0
 segmentation-models==1.0.1
 opencv-python-headless==4.9.0.80
+google-cloud-storage
 h5py
 ultralytics
 scikit-image
