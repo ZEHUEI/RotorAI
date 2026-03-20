@@ -16,5 +16,4 @@ COPY . .
 ENV PYTHONPATH=/app
 ENV PORT=8080
 
-WORKDIR /app/backend
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 120 --chdir backend AIController:app
+CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 300 --chdir backend AIController:app
