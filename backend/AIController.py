@@ -1,7 +1,7 @@
 import os
 
-from Phase2.YOLOapi import detect_frame
 os.environ["SM_FRAMEWORK"] = "tf.keras"
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import tensorflow as tf
@@ -18,6 +18,7 @@ from io import BytesIO
 from ultralytics import YOLO
 
 from Phase1.PostProcess import detect_rust_and_cracks
+from Phase2.YOLOapi import detect_frame
 
 app = Flask(__name__)
 CORS(app)
