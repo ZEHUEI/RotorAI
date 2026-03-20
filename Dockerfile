@@ -18,6 +18,8 @@ COPY Phase2 ./Phase2
 COPY Phase3 ./Phase3
 
 # Cloud Run uses PORT env variable
+ENV PYTHONPATH=/app
 ENV PORT=8080
 
+WORKDIR /app/backend
 CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 120 AIController:app
