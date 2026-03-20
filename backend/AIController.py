@@ -20,6 +20,38 @@ from ultralytics import YOLO
 from Phase1.PostProcess import detect_rust_and_cracks
 from Phase2.YOLOapi import detect_frame
 
+#--Google Cloud--
+from google.cloud import storage
+
+YOLO_MODEL_PATH = "/tmp/best.pt"
+TENSOR_MODEL_PATH ="/tmp/best_unet2_corrosion.h5"
+
+def download_model():
+    client = storage.Client()
+    bucket = client.bucket("rotor-ai-models")
+
+    if not os.path.exists(YOLO_MODEL_PATH):
+        print("Downloading YOLO model...")
+        blob = bucket.blob("best.pt")
+        blob.download_to_filename(YOLO_MODEL_PATH)
+
+    if not os.path.exists(TENSOR_MODEL_PATH):
+        print("Downloading Tensor model...")
+        blob = bucket.blob("best_unet2_corrosion.h5")  # 🔁 match your uploaded file name
+        blob.download_to_filename(TENSOR_MODEL_PATH)
+
+    print("Model downloaded!")
+
+download_model()
+
+#-- google cloud path
+yolo_model = YOLO(YOLO_MODEL_PATH)
+WEIGHTS_PATH = TENSOR_MODEL_PATH
+#--local path
+# WEIGHTS_PATH = "Phase1/best_unet2_corrosion.h5"
+# yolo_model = YOLO('yolo_corrosion/yolov8_corrosionV2/weights/best.pt')
+
+
 app = Flask(__name__)
 CORS(app)
 
@@ -33,9 +65,6 @@ def image_to_base64(img_np):
 TARGET_SIZE = (512, 512)
 BACKBONE = "resnet50"
 THRESHOLD = 0.1
-
-WEIGHTS_PATH = "Phase1/best_unet2_corrosion.h5"
-yolo_model = YOLO('yolo_corrosion/yolov8_corrosionV2/weights/best.pt')
 
 preprocess_input = sm.get_preprocessing(BACKBONE)
 
