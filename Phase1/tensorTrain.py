@@ -9,12 +9,13 @@ tf.keras.backend.clear_session()
 import json
 import numpy as np
 from pycocotools.coco import COCO
-from tensorflow.keras import layers, models
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+from tensorflow.keras import layers, models, mixed_precision
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 import segmentation_models as sm
 from segmentation_models import Unet
 from segmentation_models.losses import DiceLoss, BinaryFocalLoss
 from tensorflow.keras import mixed_precision
+import matplotlib.pyplot as plt
 from keras.layers import Lambda
 
 tf.config.optimizer.set_jit(True)
@@ -36,6 +37,10 @@ else:
     print("Warning nop gpu  runb on cpu")
     print("------------------------------------\n")
 
+
+
+policy = mixed_precision.Policy('mixed_float16')
+mixed_precision.set_global_policy(policy)
 #-------------------------------
 #COCO files
 #-------------------------------
@@ -44,7 +49,7 @@ val_img="../Data/valid"
 train_json = "../Data/train/_annotations.coco.json"
 val_json   = "../Data/valid/_annotations.coco.json"
 
-TARGET_SIZE = (512, 512)
+TARGET_SIZE = (768, 768)
 BATCH_SIZE = 4
 TARGET_LABELS = ["corrosion"]
 NUM_TARGET_CLASSES = len(TARGET_LABELS)
@@ -59,6 +64,9 @@ def rasterize_coco_annotations(anns, target_size, target_labels):
     mask = np.zeros((H, W, len(target_labels)), dtype=np.uint8)
     label_to_channel = {label: i for i, label in enumerate(target_labels)}
 
+    if not anns:
+        return mask
+
     for ann in anns:
         category_name = ann['category_name']
         if category_name in label_to_channel:
@@ -67,8 +75,6 @@ def rasterize_coco_annotations(anns, target_size, target_labels):
                 pts = np.array(seg).reshape(-1, 2).astype(np.int32)
                 temp_mask = np.zeros((H, W), dtype=np.uint8)
                 cv2.fillPoly(temp_mask, [pts], 1)
-                kernel = np.ones((3, 3), np.uint8)
-                mask[:, :, channel_idx] = cv2.dilate(mask[:, :, channel_idx], kernel, iterations=1)
                 mask[:, :, channel_idx] = np.maximum(mask[:, :, channel_idx], temp_mask)
 
     return mask
@@ -82,15 +88,17 @@ bce = tf.keras.losses.BinaryCrossentropy()
 
 def mean_iou_custom(y_true, y_pred, smooth=1e-6):
     y_pred = tf.cast(y_pred > 0.5, tf.float32)
-    intersection = tf.reduce_sum(y_true * y_pred)
-    union = tf.reduce_sum(y_true) + tf.reduce_sum(y_pred) - intersection
-    return (intersection + smooth) / (union + smooth)
+    intersection = tf.reduce_sum(y_true * y_pred,axis=[1,2,3])
+    union = tf.reduce_sum(y_true,axis=[1,2,3]) + tf.reduce_sum(y_pred, axis=[1,2,3]) - intersection
+    iou=(intersection + smooth) / (union + smooth)
+    return tf.reduce_mean(iou)
 
 def weighted_loss(y_true, y_pred):
     y_true = tf.cast(y_true, tf.float32)
     y_pred = tf.cast(y_pred, tf.float32)
-
-    return dice(y_true, y_pred) + (2.0 * focal(y_true, y_pred))
+    bce_loss = tf.keras.losses.binary_crossentropy(y_true, y_pred)
+    bce_loss = tf.reduce_mean(bce_loss)
+    return dice(y_true, y_pred) + (25.0 * focal(y_true, y_pred)) + (5.0 * bce_loss)
 
 #-----------------------------------------------------------------
 #Augment
@@ -202,6 +210,17 @@ def collect_coco_data(img_dir, coco_json_path):
 #--------------
 #prepare datasets
 #-----------------
+photometric_augment = tf.keras.Sequential([
+    layers.RandomContrast(0.2),
+    layers.RandomBrightness(0.1),
+    # Use Average Pooling for a "Box Blur" effect (TF 2.x compatible)
+    layers.Lambda(lambda x: tf.cond(
+        tf.random.uniform([]) > 0.5,
+        lambda: tf.nn.avg_pool2d(x, ksize=[1, 3, 3, 1], strides=[1, 1, 1, 1], padding='SAME'),
+        lambda: x
+    ))
+])
+
 def apply_augmentations(img, mask):
     # img: (H, W, 3), mask: (H, W, num_classes)
     # Concatenate image and mask along channels to apply same geometric transform
@@ -211,17 +230,26 @@ def apply_augmentations(img, mask):
 
     img_aug = combined[..., :3]
     mask_aug = combined[..., 3:]
+
+    img_aug = photometric_augment(tf.expand_dims(img_aug, 0), training=True)
+    img_aug = tf.squeeze(img_aug, 0)
+
     return img_aug, mask_aug
 
 print("Collecting training data paths and JSON content...")
 train_image_paths, train_annotations  = collect_coco_data(train_img, train_json)
 train_ann_dict = {path: anns for path, anns in zip(train_image_paths, train_annotations)}
+train_image_paths = list(train_ann_dict.keys())
 print(f"Found {len(train_image_paths)} image-JSON pairs for training.")
 
 
 train_dataset = tf.data.Dataset.from_tensor_slices((
     train_image_paths
 ))
+
+train_dataset = train_dataset.shuffle(buffer_size=1000)
+
+train_dataset = train_dataset.repeat()
 
 train_dataset = train_dataset.map(
     tf_train_map_func,
@@ -244,6 +272,8 @@ base_model = Unet(
     input_shape=TARGET_SIZE + (3,)
 )
 
+base_model.trainable = True
+
 outputs = Lambda(lambda t: tf.cast(t, tf.float32))(base_model.output)
 
 model = tf.keras.Model(
@@ -251,7 +281,18 @@ model = tf.keras.Model(
     outputs=outputs
 )
 
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=1e-4),loss=weighted_loss,metrics=[mean_iou_custom])
+#optimizer
+optimizer = tf.keras.optimizers.Adam(learning_rate=1e-5)
+optimizer = mixed_precision.LossScaleOptimizer(optimizer)
+
+model.compile(optimizer=optimizer,loss=weighted_loss,metrics=[mean_iou_custom])
+
+# PREVIOUS_WEIGHTS = "best_unet3_corrosion.h5" # Or "best_unet2_corrosion.h5"
+# if os.path.exists(PREVIOUS_WEIGHTS):
+#     print(f"Loading weights from {PREVIOUS_WEIGHTS} to continue training...")
+#     model.load_weights(PREVIOUS_WEIGHTS, by_name=True, skip_mismatch=True)
+# else:
+#     print("No previous weights found. Starting training from scratch.")
 
 EPOCHS =100
 
@@ -277,7 +318,8 @@ val_dataset = tf.data.Dataset.from_tensor_slices((
 #-------------
 callbacks=[
     EarlyStopping(patience=15,verbose=1,monitor='val_mean_iou_custom',mode='max',restore_best_weights=True),
-    ModelCheckpoint('best_unet2_corrosion.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max')
+    ModelCheckpoint('best_unet2_with_faces_corrosion.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max'),
+    ReduceLROnPlateau(monitor='val_mean_iou_custom', factor=0.2, patience=3, min_lr=1e-7, verbose=1,mode='max')
 ]
 
 #---------
@@ -286,16 +328,49 @@ callbacks=[
 def train():
     print(f"\nStarting model training for {EPOCHS} epochs...")
 
+    class_weights = {0: 1.0, 1: 10.0}
+    STEPS = len(train_image_paths) // BATCH_SIZE
+    VAL_STEPS = len(val_image_paths) // BATCH_SIZE
+
     history = model.fit(
         train_dataset,
+        steps_per_epoch=STEPS,
         epochs=EPOCHS,
         validation_data = val_dataset,
+        validation_steps=VAL_STEPS,
         callbacks=callbacks
     )
 
     # Save the weights so you can reload the model later without retraining
-    model.save_weights("unet2_corrosion_model.h5")
+    model.save_weights("unet2_with_faces_corrosion.h5")
     print("Training finished and weights saved.")
+
+    print("Generating training plots...")
+    epochs_range = range(1, len(history.history['loss']) + 1)
+
+    plt.figure(figsize=(15, 5))
+
+    # Plot 1: Mean IoU (Confidence/Accuracy)
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs_range, history.history['mean_iou_custom'], label='Training IoU')
+    plt.plot(epochs_range, history.history['val_mean_iou_custom'], label='Validation IoU')
+    plt.title('Model Mean IoU (Confidence Check)')
+    plt.xlabel('Epochs')
+    plt.ylabel('IoU Score')
+    plt.legend()
+
+    # Plot 2: Loss (The "Pain" Score)
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs_range, history.history['loss'], label='Training Loss')
+    plt.plot(epochs_range, history.history['val_loss'], label='Validation Loss')
+    plt.title('Model Weighted Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss Value')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.savefig('unet_with_faces_corrosion.png')
+    print("Graphs saved as 'unet_with_faces_corrosion.png'. Check this to see the learning curve!")
 
 if __name__ == "__main__":
     train()
