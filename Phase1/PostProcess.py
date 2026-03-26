@@ -8,15 +8,24 @@ def detect_rust_and_cracks(image,corrosion_mask):
     lab = cv2.cvtColor(image,cv2.COLOR_RGB2Lab)
 
     #L = lightness, a channel= X G/Y b channel= X Y/Dark brown
-    rust_mask = cv2.inRange(lab, np.array([40,135,140]), np.array([120, 150, 190]))
-    rust_mask = cv2.bitwise_and(rust_mask, rust_mask, mask=corrosion_mask)
+    lower_rust = np.array([40, 135, 140])
+    upper_rust = np.array([120, 150, 190])
+    color_mask = cv2.inRange(lab, lower_rust, upper_rust)
+
+    rust_mask = cv2.bitwise_and(color_mask, color_mask, mask=corrosion_mask)
 
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(rust_mask, connectivity=8)
     clean_rust = np.zeros_like(rust_mask)
+
     for i in range(1, num_labels):
         area = stats[i, cv2.CC_STAT_AREA]
-        if area > 215:  # remove tiny patches; tune this
+        w = stats[i, cv2.CC_STAT_WIDTH]
+        h = stats[i, cv2.CC_STAT_HEIGHT]
+        aspect_ratio = max(w, h) / (min(w, h) + 1e-5)
+
+        if area > 350 and aspect_ratio < 4.0:
             clean_rust[labels == i] = 255
+
     rust_mask = clean_rust
 
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -25,6 +34,9 @@ def detect_rust_and_cracks(image,corrosion_mask):
     enhanced_gray = clahe.apply(gray)
 
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
+    # kernel = np.ones((5, 5), np.uint8)
+    # rust_mask = cv2.morphologyEx(rust_mask, cv2.MORPH_CLOSE, kernel)
+    # rust_mask = cv2.morphologyEx(rust_mask, cv2.MORPH_OPEN, kernel)
     blackhat = cv2.morphologyEx(enhanced_gray, cv2.MORPH_BLACKHAT, kernel)
 
     blackhat_in_rust = cv2.bitwise_and(blackhat, blackhat, mask=rust_mask)

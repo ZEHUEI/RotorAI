@@ -31,8 +31,7 @@ model = tf.keras.Model(
     outputs=outputs
 )
 #---------------------------
-#unet3_crack_rust_dacl10k_weights
-WEIGHTS_FILE = "best_unet2_corrosion.h5"
+WEIGHTS_FILE = "best_unet2_with_faces_corrosion.h5"
 try:
     model.load_weights(WEIGHTS_FILE)
     print("Model output test:", model(np.zeros((1, 512, 512, 3))).numpy().mean())
@@ -61,6 +60,10 @@ def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.1):
 
     # 4. Predict corrosion mask
     pred_mask = model.predict(img_batch)[0, :, :, 0]
+    print(f"\n--- Model Output Stats ---")
+    print(f"Max confidence: {pred_mask.max():.4f}")
+    print(f"Min confidence: {pred_mask.min():.4f}")
+    print(f"Mean confidence: {pred_mask.mean():.4f}")
     corrosion_mask = (pred_mask > threshold).astype(np.uint8)
 
     # 5. Resize back to original image size
@@ -78,43 +81,82 @@ def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.1):
 
 # --- Test Execution Block-----------------------------------------------------------
 
-TESTING123 = "../Outcomes/Input/qc.jpg"
+TESTING123 = "../Outcomes/Input/motor2.jpg"
 TEST_IMAGE_PATH = "../Data/test/1_58_jpg.rf.926f79e868a36f37b8bbf79c3e4d4fa6.jpg"
 
-if os.path.exists(TESTING123):
+if os.path.exists(TEST_IMAGE_PATH):
     print("\n--- Starting Inference ---")
-    original_image, corrosion_mask, rust_mask, crack_mask = predict_image(model, TESTING123)
+    original_image, corrosion_mask, rust_mask, crack_mask = predict_image(model, TEST_IMAGE_PATH)
 
 
-    print(f"Test Image: {os.path.basename(TESTING123)}")
+    print(f"Test Image: {os.path.basename(TEST_IMAGE_PATH)}")
     print(f"Predicted Crack Pixels: {np.sum(crack_mask)}")
     print(f"Predicted Rust Pixels: {np.sum(rust_mask)}")
 
     # --- Visualization ---
     import matplotlib.pyplot as plt
 
-    plt.figure(figsize=(15, 5))
+    plt.figure(figsize=(15, 6))
 
     # Plot 1: Original Image
-    plt.subplot(1, 3, 1)
+    plt.subplot(2, 4, 1)
     plt.imshow(original_image)
-    plt.title("YES BABY!!!!!!!!!!!!!")
+    plt.title("IMG 1")
 
-    # Plot 2: Crack Detection (Overlaying cyan)
-    crack_overlay = original_image.copy()
-    crack_overlay[crack_mask > 0] = [0, 255, 255]
-    plt.subplot(1, 3, 2)
-    plt.imshow(crack_overlay)
-    plt.title("Cracks Detected (Cyan)")
+    # Plot 2: Rust Detection (Overlaying green)
+    plt.subplot(2, 4, 2)
+    img_raw = tf.io.read_file(TEST_IMAGE_PATH)
+    img_resized = tf.image.resize(tf.image.decode_jpeg(img_raw, channels=3), TARGET_SIZE)
+    raw_pred = model.predict(np.expand_dims(preprocess_input(img_resized.numpy()), axis=0))[0, :, :, 0]
+    plt.imshow(original_image)
+    plt.imshow(cv2.resize(raw_pred, (original_image.shape[1], original_image.shape[0])), cmap='jet', alpha=0.5)
+    plt.title("Raw AI Heatmap")
 
     # Plot 3: Rust Detection (Overlaying green)
     rust_overlay = original_image.copy()
     rust_overlay[rust_mask > 0] = [0, 255, 0]
-    plt.subplot(1, 3, 3)
+    plt.subplot(2, 4, 3)
     plt.imshow(rust_overlay)
     plt.title("Rust Detected (Green)")
 
-    plt.tight_layout()
+    # Plot 4: Crack Detection (Overlaying cyan)
+    crack_overlay = original_image.copy()
+    crack_overlay[crack_mask > 0] = [0, 255, 255]
+    plt.subplot(2, 4, 4)
+    plt.imshow(crack_overlay)
+    plt.title("Cracks Detected (Cyan)")
+
+    original_image, corrosion_mask, rust_mask, crack_mask = predict_image(model, TESTING123)
+
+    # Plot 1: Original Image
+    plt.subplot(2, 4, 5)
+    plt.imshow(original_image)
+    plt.title("IMG 2")
+
+    # Plot 2: Rust Detection (Overlaying green)
+    plt.subplot(2, 4, 6)
+    img_raw = tf.io.read_file(TESTING123)
+    img_resized = tf.image.resize(tf.image.decode_jpeg(img_raw, channels=3), TARGET_SIZE)
+    raw_pred = model.predict(np.expand_dims(preprocess_input(img_resized.numpy()), axis=0))[0, :, :, 0]
+    plt.imshow(original_image)
+    plt.imshow(cv2.resize(raw_pred, (original_image.shape[1], original_image.shape[0])), cmap='jet', alpha=0.5)
+    plt.title("Raw AI Heatmap")
+
+    # Plot 3: Rust Detection (Overlaying green)
+    rust_overlay = original_image.copy()
+    rust_overlay[rust_mask > 0] = [0, 255, 0]
+    plt.subplot(2, 4, 7)
+    plt.imshow(rust_overlay)
+    plt.title("Rust Detected (Green)")
+
+    # Plot 4: Crack Detection (Overlaying cyan)
+    crack_overlay = original_image.copy()
+    crack_overlay[crack_mask > 0] = [0, 255, 255]
+    plt.subplot(2, 4, 8)
+    plt.imshow(crack_overlay)
+    plt.title("Cracks Detected (Cyan)")
+
+    plt.subplots_adjust(hspace=0.8, wspace=0.3)
     plt.show()
 else:
-    print(f"Error: Test image not found at {TESTING123}")
+    print(f"Error: Test image not found at {TEST_IMAGE_PATH}")

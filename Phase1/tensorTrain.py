@@ -83,11 +83,11 @@ def rasterize_coco_annotations(anns, target_size, target_labels):
 # Metric loss custom
 #------------------------------
 dice = DiceLoss()
-focal = BinaryFocalLoss()
+focal = BinaryFocalLoss(gamma=3.0,alpha=0.25)
 bce = tf.keras.losses.BinaryCrossentropy()
 
 def mean_iou_custom(y_true, y_pred, smooth=1e-6):
-    y_pred = tf.cast(y_pred > 0.5, tf.float32)
+    y_pred = tf.cast(y_pred > 0.3, tf.float32)
     intersection = tf.reduce_sum(y_true * y_pred,axis=[1,2,3])
     union = tf.reduce_sum(y_true,axis=[1,2,3]) + tf.reduce_sum(y_pred, axis=[1,2,3]) - intersection
     iou=(intersection + smooth) / (union + smooth)
@@ -98,7 +98,7 @@ def weighted_loss(y_true, y_pred):
     y_pred = tf.cast(y_pred, tf.float32)
     bce_loss = tf.keras.losses.binary_crossentropy(y_true, y_pred)
     bce_loss = tf.reduce_mean(bce_loss)
-    return dice(y_true, y_pred) + (25.0 * focal(y_true, y_pred)) + (5.0 * bce_loss)
+    return dice(y_true, y_pred) + (5.0 * focal(y_true, y_pred)) + (5.0 * bce_loss)
 
 #-----------------------------------------------------------------
 #Augment
@@ -111,11 +111,13 @@ geometric_augment = tf.keras.Sequential([
 ])
 
 photometric_augment = tf.keras.Sequential([
-    layers.RandomContrast(0.2),
-    layers.RandomBrightness(0.1),
+    #brightness,contrast and gamma(shadow)
+    layers.RandomContrast(0.4),
+    layers.RandomBrightness(0.3),
+layers.Lambda(lambda x: tf.image.adjust_gamma(x, gamma=tf.cast(tf.random.uniform([], 0.5, 1.5),x.dtype))),
 layers.Lambda(lambda x: tf.cond(
         tf.random.uniform([]) > 0.5,
-        lambda: tf.image.gaussian_blur(x, kernel_size=(3, 3), sigma=0.5),
+        lambda: tf.nn.avg_pool2d(x, ksize=[1, 3, 3, 1], strides=[1, 1, 1, 1], padding='SAME'),
         lambda: x
     ))
 ])
@@ -210,17 +212,6 @@ def collect_coco_data(img_dir, coco_json_path):
 #--------------
 #prepare datasets
 #-----------------
-photometric_augment = tf.keras.Sequential([
-    layers.RandomContrast(0.2),
-    layers.RandomBrightness(0.1),
-    # Use Average Pooling for a "Box Blur" effect (TF 2.x compatible)
-    layers.Lambda(lambda x: tf.cond(
-        tf.random.uniform([]) > 0.5,
-        lambda: tf.nn.avg_pool2d(x, ksize=[1, 3, 3, 1], strides=[1, 1, 1, 1], padding='SAME'),
-        lambda: x
-    ))
-])
-
 def apply_augmentations(img, mask):
     # img: (H, W, 3), mask: (H, W, num_classes)
     # Concatenate image and mask along channels to apply same geometric transform
@@ -271,10 +262,11 @@ base_model = Unet(
     activation='sigmoid',
     input_shape=TARGET_SIZE + (3,)
 )
-
+x = layers.Dropout(0.3)(base_model.layers[-2].output)
 base_model.trainable = True
+outputs = base_model.layers[-1](x)
 
-outputs = Lambda(lambda t: tf.cast(t, tf.float32))(base_model.output)
+outputs = Lambda(lambda t: tf.cast(t, tf.float32))(outputs)
 
 model = tf.keras.Model(
     inputs=base_model.input,
@@ -282,12 +274,12 @@ model = tf.keras.Model(
 )
 
 #optimizer
-optimizer = tf.keras.optimizers.Adam(learning_rate=1e-5)
+optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
 optimizer = mixed_precision.LossScaleOptimizer(optimizer)
 
 model.compile(optimizer=optimizer,loss=weighted_loss,metrics=[mean_iou_custom])
 
-# PREVIOUS_WEIGHTS = "best_unet3_corrosion.h5" # Or "best_unet2_corrosion.h5"
+# PREVIOUS_WEIGHTS = "best_unet4_with_faces_corrosion.h5" # Or "best_unet2_corrosion.h5"
 # if os.path.exists(PREVIOUS_WEIGHTS):
 #     print(f"Loading weights from {PREVIOUS_WEIGHTS} to continue training...")
 #     model.load_weights(PREVIOUS_WEIGHTS, by_name=True, skip_mismatch=True)
@@ -316,9 +308,10 @@ val_dataset = tf.data.Dataset.from_tensor_slices((
 #-------------
 #callbacks
 #-------------
+#unet 5 now! 26/3/2026 9:34AM
 callbacks=[
     EarlyStopping(patience=15,verbose=1,monitor='val_mean_iou_custom',mode='max',restore_best_weights=True),
-    ModelCheckpoint('best_unet2_with_faces_corrosion.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max'),
+    ModelCheckpoint('best_unet6_with_faces_corrosion.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max'),
     ReduceLROnPlateau(monitor='val_mean_iou_custom', factor=0.2, patience=3, min_lr=1e-7, verbose=1,mode='max')
 ]
 
@@ -342,7 +335,7 @@ def train():
     )
 
     # Save the weights so you can reload the model later without retraining
-    model.save_weights("unet2_with_faces_corrosion.h5")
+    model.save_weights("unet6_with_faces_corrosion.h5")
     print("Training finished and weights saved.")
 
     print("Generating training plots...")
@@ -369,8 +362,8 @@ def train():
     plt.legend()
 
     plt.tight_layout()
-    plt.savefig('unet_with_faces_corrosion.png')
-    print("Graphs saved as 'unet_with_faces_corrosion.png'. Check this to see the learning curve!")
+    plt.savefig('unet6_with_faces_corrosion.png')
+    print("Graphs saved as 'unet6_with_faces_corrosion.png'. Check this to see the learning curve!")
 
 if __name__ == "__main__":
     train()
