@@ -87,7 +87,7 @@ focal = BinaryFocalLoss(gamma=3.0,alpha=0.25)
 bce = tf.keras.losses.BinaryCrossentropy()
 
 def mean_iou_custom(y_true, y_pred, smooth=1e-6):
-    y_pred = tf.cast(y_pred > 0.3, tf.float32)
+    y_pred = tf.cast(y_pred > 0.45, tf.float32)
     intersection = tf.reduce_sum(y_true * y_pred,axis=[1,2,3])
     union = tf.reduce_sum(y_true,axis=[1,2,3]) + tf.reduce_sum(y_pred, axis=[1,2,3]) - intersection
     iou=(intersection + smooth) / (union + smooth)
@@ -98,7 +98,7 @@ def weighted_loss(y_true, y_pred):
     y_pred = tf.cast(y_pred, tf.float32)
     bce_loss = tf.keras.losses.binary_crossentropy(y_true, y_pred)
     bce_loss = tf.reduce_mean(bce_loss)
-    return dice(y_true, y_pred) + (5.0 * focal(y_true, y_pred)) + (5.0 * bce_loss)
+    return dice(y_true, y_pred) + (18.0 * focal(y_true, y_pred)) + (3.0 * bce_loss)
 
 #-----------------------------------------------------------------
 #Augment
@@ -279,7 +279,7 @@ optimizer = mixed_precision.LossScaleOptimizer(optimizer)
 
 model.compile(optimizer=optimizer,loss=weighted_loss,metrics=[mean_iou_custom])
 
-# PREVIOUS_WEIGHTS = "best_unet4_with_faces_corrosion.h5" # Or "best_unet2_corrosion.h5"
+# PREVIOUS_WEIGHTS = "best_unet7_with_faces_corrosion.h5" # Or "best_unet2_corrosion.h5"
 # if os.path.exists(PREVIOUS_WEIGHTS):
 #     print(f"Loading weights from {PREVIOUS_WEIGHTS} to continue training...")
 #     model.load_weights(PREVIOUS_WEIGHTS, by_name=True, skip_mismatch=True)
@@ -308,10 +308,10 @@ val_dataset = tf.data.Dataset.from_tensor_slices((
 #-------------
 #callbacks
 #-------------
-#unet 5 now! 26/3/2026 9:34AM
+#unet 7 now! 27/3/2026 00:44AM
 callbacks=[
     EarlyStopping(patience=15,verbose=1,monitor='val_mean_iou_custom',mode='max',restore_best_weights=True),
-    ModelCheckpoint('best_unet6_with_faces_corrosion.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max'),
+    ModelCheckpoint('best_unet7_with_faces_corrosion.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max'),
     ReduceLROnPlateau(monitor='val_mean_iou_custom', factor=0.2, patience=3, min_lr=1e-7, verbose=1,mode='max')
 ]
 
@@ -335,7 +335,7 @@ def train():
     )
 
     # Save the weights so you can reload the model later without retraining
-    model.save_weights("unet6_with_faces_corrosion.h5")
+    model.save_weights("unet7_with_faces_corrosion.h5")
     print("Training finished and weights saved.")
 
     print("Generating training plots...")
@@ -362,8 +362,8 @@ def train():
     plt.legend()
 
     plt.tight_layout()
-    plt.savefig('unet6_with_faces_corrosion.png')
-    print("Graphs saved as 'unet6_with_faces_corrosion.png'. Check this to see the learning curve!")
+    plt.savefig('unet7_with_faces_corrosion.png')
+    print("Graphs saved as 'unet7_with_faces_corrosion.png'. Check this to see the learning curve!")
 
 if __name__ == "__main__":
     train()
