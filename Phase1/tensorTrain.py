@@ -311,7 +311,7 @@ val_dataset = tf.data.Dataset.from_tensor_slices((
 #unet 7 now! 27/3/2026 00:44AM
 callbacks=[
     EarlyStopping(patience=15,verbose=1,monitor='val_mean_iou_custom',mode='max',restore_best_weights=True),
-    ModelCheckpoint('best_unet7_with_faces_corrosion.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max'),
+    ModelCheckpoint('best_unet8_with_faces_corrosion.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max'),
     ReduceLROnPlateau(monitor='val_mean_iou_custom', factor=0.2, patience=3, min_lr=1e-7, verbose=1,mode='max')
 ]
 
@@ -335,7 +335,7 @@ def train():
     )
 
     # Save the weights so you can reload the model later without retraining
-    model.save_weights("unet7_with_faces_corrosion.h5")
+    model.save_weights("unet8_with_faces_corrosion.h5")
     print("Training finished and weights saved.")
 
     print("Generating training plots...")
@@ -362,8 +362,8 @@ def train():
     plt.legend()
 
     plt.tight_layout()
-    plt.savefig('unet7_with_faces_corrosion.png')
-    print("Graphs saved as 'unet7_with_faces_corrosion.png'. Check this to see the learning curve!")
+    plt.savefig('unet8_with_faces_corrosion.png')
+    print("Graphs saved as 'unet8_with_faces_corrosion.png'. Check this to see the learning curve!")
 
 if __name__ == "__main__":
     train()
