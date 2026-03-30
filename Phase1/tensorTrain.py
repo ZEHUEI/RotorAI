@@ -83,11 +83,11 @@ def rasterize_coco_annotations(anns, target_size, target_labels):
 # Metric loss custom
 #------------------------------
 dice = DiceLoss()
-focal = BinaryFocalLoss(gamma=3.0,alpha=0.25)
+focal = BinaryFocalLoss(gamma=2.0,alpha=0.25)
 bce = tf.keras.losses.BinaryCrossentropy()
 
 def mean_iou_custom(y_true, y_pred, smooth=1e-6):
-    y_pred = tf.cast(y_pred > 0.45, tf.float32)
+    y_pred = tf.cast(y_pred > 0.50, tf.float32)
     intersection = tf.reduce_sum(y_true * y_pred,axis=[1,2,3])
     union = tf.reduce_sum(y_true,axis=[1,2,3]) + tf.reduce_sum(y_pred, axis=[1,2,3]) - intersection
     iou=(intersection + smooth) / (union + smooth)
@@ -98,7 +98,7 @@ def weighted_loss(y_true, y_pred):
     y_pred = tf.cast(y_pred, tf.float32)
     bce_loss = tf.keras.losses.binary_crossentropy(y_true, y_pred)
     bce_loss = tf.reduce_mean(bce_loss)
-    return dice(y_true, y_pred) + (18.0 * focal(y_true, y_pred)) + (3.0 * bce_loss)
+    return (15.0 * dice(y_true, y_pred)) + (5.0 * focal(y_true, y_pred)) + (5.0 * bce_loss)
 
 #-----------------------------------------------------------------
 #Augment
@@ -114,6 +114,7 @@ photometric_augment = tf.keras.Sequential([
     #brightness,contrast and gamma(shadow)
     layers.RandomContrast(0.4),
     layers.RandomBrightness(0.3),
+layers.Lambda(lambda x: tf.image.random_hue(x, 0.05)),
 layers.Lambda(lambda x: tf.image.adjust_gamma(x, gamma=tf.cast(tf.random.uniform([], 0.5, 1.5),x.dtype))),
 layers.Lambda(lambda x: tf.cond(
         tf.random.uniform([]) > 0.5,
@@ -125,43 +126,105 @@ layers.Lambda(lambda x: tf.cond(
 #-----------------------------------------------------------------
 #map functions
 #-----------------------------------------------------------------
+def resize_and_pad_numpy(img_np, mask_np, target_h, target_w):
+    """Pure numpy resize+pad — avoids TF's off-by-one bug completely."""
+    h, w = img_np.shape[:2]
+    scale = min(target_h / h, target_w / w)
+    new_h = min(int(np.floor(h * scale)), target_h)
+    new_w = min(int(np.floor(w * scale)), target_w)
+
+    # Resize with OpenCV (stays in numpy, no TF involved)
+    img_resized = cv2.resize(img_np, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+    mask_resized = cv2.resize(mask_np, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+
+    # Pad to target size
+    pad_h = target_h - new_h
+    pad_w = target_w - new_w
+    pad_top  = pad_h // 2
+    pad_left = pad_w // 2
+
+    img_padded  = np.pad(img_resized,  [[pad_top, pad_h - pad_top], [pad_left, pad_w - pad_left], [0, 0]])
+    # mask may be (H, W) or (H, W, C) — handle both
+    if mask_resized.ndim == 2:
+        mask_padded = np.pad(mask_resized, [[pad_top, pad_h - pad_top], [pad_left, pad_w - pad_left]])
+    else:
+        mask_padded = np.pad(mask_resized, [[pad_top, pad_h - pad_top], [pad_left, pad_w - pad_left], [0, 0]])
+
+    return img_padded, mask_padded
+
+def apply_clahe(img_np):
+    # Convert RGB to LAB color space
+    # We only apply CLAHE to the 'Lightness' channel (L) so we don't ruin the rust colors
+    img_uint8 = np.clip(img_np, 0, 255).astype(np.uint8)
+    lab = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2LAB)
+    l, a, b = cv2.split(lab)
+
+    # Create CLAHE object (clipLimit 3.0 is a good strong baseline for shadows)
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    cl = clahe.apply(l)
+
+    limg = cv2.merge((cl, a, b))
+    return cv2.cvtColor(limg, cv2.COLOR_LAB2RGB)
+
+
 def map_func(image_path, anns):
-    img = tf.io.read_file(image_path)
-    img = tf.image.decode_jpeg(img, channels=3)
-    img = tf.image.resize(img, TARGET_SIZE)
+    img = cv2.imread(image_path)
+    if img is None:
+        return np.zeros((*TARGET_SIZE, 3), dtype=np.float32), \
+               np.zeros((*TARGET_SIZE, NUM_TARGET_CLASSES), dtype=np.float32)
 
-    # Rasterize annotations into mask
-    mask_np = rasterize_coco_annotations(anns, TARGET_SIZE, TARGET_LABELS)
-    mask_tensor = tf.convert_to_tensor(mask_np, dtype=tf.float32)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    h_orig, w_orig = img.shape[:2]
+    mask_np = rasterize_coco_annotations(anns, (h_orig, w_orig), TARGET_LABELS)
 
-    img = preprocess_input(img)
-    mask_tensor = tf.cast(mask_tensor, tf.float32)
+    # Resize + pad entirely in numpy — no TF involved, no off-by-one bugs
+    img_padded, mask_padded = resize_and_pad_numpy(img, mask_np, TARGET_SIZE[0], TARGET_SIZE[1])
 
-    return img, mask_tensor
+    # CLAHE on the padded uint8 image
+    img_clahe = apply_clahe(img_padded)
+
+    # Preprocess & cast
+    img_final  = preprocess_input(img_clahe.astype(np.float32))
+    mask_final = (mask_padded > 0.5).astype(np.float32)
+
+    return tf.convert_to_tensor(img_final,  dtype=tf.float32), \
+           tf.convert_to_tensor(mask_final, dtype=tf.float32)
 
 def val_map_func(image_path, anns):
     img = cv2.imread(image_path)
+    if img is None:
+        return np.zeros((*TARGET_SIZE, 3), dtype=np.float32), \
+            np.zeros((*TARGET_SIZE, NUM_TARGET_CLASSES), dtype=np.float32)
+
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    img = cv2.resize(img, TARGET_SIZE)
+    h_orig, w_orig = img.shape[:2]
+    mask_np = rasterize_coco_annotations(anns, (h_orig, w_orig), TARGET_LABELS)
 
-    mask_np = rasterize_coco_annotations(anns, TARGET_SIZE, TARGET_LABELS)
+    # Resize + pad entirely in numpy — no TF involved, no off-by-one bugs
+    img_padded, mask_padded = resize_and_pad_numpy(img, mask_np, TARGET_SIZE[0], TARGET_SIZE[1])
 
-    img = preprocess_input(img.astype(np.float32))
-    mask = mask_np.astype(np.float32)
+    # CLAHE on the padded uint8 image
+    img_clahe = apply_clahe(img_padded)
 
-    return img, mask
+    # Preprocess & cast
+    img_final = preprocess_input(img_clahe.astype(np.float32))
+    mask_final = (mask_padded > 0.5).astype(np.float32)
 
+    return tf.convert_to_tensor(img_final, dtype=tf.float32), \
+        tf.convert_to_tensor(mask_final, dtype=tf.float32)
 
 
 def tf_train_map_func(img_path):
     def py_func(img_path_tensor):
         img_path_str = img_path_tensor.numpy().decode('utf-8')
         anns = train_ann_dict[img_path_str]
-        return map_func(img_path_str, anns)
+        img, mask = map_func(img_path_str, anns)
+
+        return img,mask
 
     img, mask = tf.py_function(py_func, [img_path], [tf.float32, tf.float32])
-    img.set_shape([TARGET_SIZE[0], TARGET_SIZE[1], 3])
-    mask.set_shape([TARGET_SIZE[0], TARGET_SIZE[1], NUM_TARGET_CLASSES])
+    img = tf.reshape(img, [TARGET_SIZE[0], TARGET_SIZE[1], 3])
+    mask = tf.reshape(mask, [TARGET_SIZE[0], TARGET_SIZE[1], NUM_TARGET_CLASSES])
     return img, mask
 
 
@@ -169,11 +232,13 @@ def tf_val_map_func(img_path):
     def py_func(img_path_tensor):
         img_path_str = img_path_tensor.numpy().decode('utf-8')
         anns = val_ann_dict[img_path_str]
-        return val_map_func(img_path_str, anns)
+        img, mask = val_map_func(img_path_str, anns)
+
+        return img,mask
 
     img, mask = tf.py_function(py_func, [img_path], [tf.float32, tf.float32])
-    img.set_shape([TARGET_SIZE[0], TARGET_SIZE[1], 3])
-    mask.set_shape([TARGET_SIZE[0], TARGET_SIZE[1], NUM_TARGET_CLASSES])
+    img = tf.reshape(img, [TARGET_SIZE[0], TARGET_SIZE[1], 3])
+    mask = tf.reshape(mask, [TARGET_SIZE[0], TARGET_SIZE[1], NUM_TARGET_CLASSES])
     return img, mask
 
 
@@ -225,6 +290,9 @@ def apply_augmentations(img, mask):
     img_aug = photometric_augment(tf.expand_dims(img_aug, 0), training=True)
     img_aug = tf.squeeze(img_aug, 0)
 
+    img_aug.set_shape([TARGET_SIZE[0], TARGET_SIZE[1], 3])
+    mask_aug.set_shape([TARGET_SIZE[0], TARGET_SIZE[1], NUM_TARGET_CLASSES])
+
     return img_aug, mask_aug
 
 print("Collecting training data paths and JSON content...")
@@ -262,7 +330,7 @@ base_model = Unet(
     activation='sigmoid',
     input_shape=TARGET_SIZE + (3,)
 )
-x = layers.Dropout(0.3)(base_model.layers[-2].output)
+x = layers.SpatialDropout2D(0.2)(base_model.layers[-2].output)
 base_model.trainable = True
 outputs = base_model.layers[-1](x)
 
@@ -311,7 +379,7 @@ val_dataset = tf.data.Dataset.from_tensor_slices((
 #unet 7 now! 27/3/2026 00:44AM
 callbacks=[
     EarlyStopping(patience=15,verbose=1,monitor='val_mean_iou_custom',mode='max',restore_best_weights=True),
-    ModelCheckpoint('best_unet8_with_faces_corrosion.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max'),
+    ModelCheckpoint('best_unet11_with_faces_corrosion.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max'),
     ReduceLROnPlateau(monitor='val_mean_iou_custom', factor=0.2, patience=3, min_lr=1e-7, verbose=1,mode='max')
 ]
 
@@ -335,7 +403,7 @@ def train():
     )
 
     # Save the weights so you can reload the model later without retraining
-    model.save_weights("unet8_with_faces_corrosion.h5")
+    model.save_weights("unet11_with_faces_corrosion.h5")
     print("Training finished and weights saved.")
 
     print("Generating training plots...")
@@ -362,8 +430,8 @@ def train():
     plt.legend()
 
     plt.tight_layout()
-    plt.savefig('unet8_with_faces_corrosion.png')
-    print("Graphs saved as 'unet8_with_faces_corrosion.png'. Check this to see the learning curve!")
+    plt.savefig('unet11_with_faces_corrosion.png')
+    print("Graphs saved as 'unet11_with_faces_corrosion.png'. Check this to see the learning curve!")
 
 if __name__ == "__main__":
     train()

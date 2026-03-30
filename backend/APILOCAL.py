@@ -122,5 +122,17 @@ def detect():
 
     return jsonify(detections)
 
+#3D-Gaussian we expect video only mp4
+@app.route("/gaussian",methods=["POST"])
+def gaussian():
+    #request ddata which is video, mp4
+
+    #decode it to like 3 frames a sec then make it and scan for rust / cracks like predict
+
+    #Get 3D model and maybe toggle rust/cracks or smt
+
+    #maybe return to interactive moving where u can rotate or smt but return 0 for now
+    return 0
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=3001, debug=True)

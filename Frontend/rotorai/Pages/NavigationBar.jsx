@@ -9,6 +9,7 @@ const NavigationBar = () => {
   const items = [
     { label: 'ROTORAI', href: '/' },
     { label: 'YOLO', href: '/yolo' },
+    { label: '3D-GAUSSIAN', href: '/gaussian' },
     { label: 'ABOUT', href: '/about' },
     { label: 'BLOG', href: '/blog' },
   ];
