@@ -2,6 +2,7 @@
 import React from 'react';
 import FullBleedDivider from '@/Components/FullBleedDivider';
 import AboutCard from '@/Components/AboutCard';
+import TechStackCard from '@/Components/TechStackCard';
 
 const Features = [
   {
@@ -38,24 +39,29 @@ const Features = [
 const Stack = [
   {
     id: 1,
-    text1: 'AI',
-    text2: 'Python 3.x',
-    text3: 'Tensorflwow, Keras- (CLAHE and Balckhat Morphology)',
-    text4: 'OpenCV / YOLO - Image and video processing',
+    text1: 'AI & MACHINE LEARNING',
+    text2: '• Python 3.x',
+    text3: '• Tensorflwow, Keras- (CLAHE and Balckhat Morphology)',
+    text4: '• OpenCV / YOLO - Image and video processing',
   },
   {
     id: 2,
-    text1: '',
-    text2: '',
-    text3: '',
-    text4: '',
+    text1: '3D VISUALIZATION',
+    text2: '• 3D Gaussian Splatting',
   },
   {
     id: 3,
-    text1: '',
-    text2: '',
-    text3: '',
-    text4: '',
+    text1: 'BACKEND & CLOUD DEPLOYMENT',
+    text2: '• FLASK API',
+    text3: '• Docker',
+    text4: '• GCR - (Google Cloud Run)',
+  },
+  {
+    id: 4,
+    text1: 'FRONTEND DEPLOYMENT',
+    text2: '• JavaScript',
+    text3: '• NODE.js',
+    text4: '• Vercel',
   },
 ];
 
@@ -89,7 +95,7 @@ const About = () => {
         </div>
 
         {/*mapping */}
-        <div className="grid grid-cols-2 space-x-10 space-y-10">
+        <div className="grid grid-cols-2 gap-10 auto-cols-fr">
           {Features.map((item) => (
             <div key={item.id}>
               <AboutCard text1={item.text1} text2={item.text2} />
@@ -105,18 +111,15 @@ const About = () => {
         </div>
 
         {/*mapping */}
-        <div className="space-y-10 max-w-3xl">
+        <div className="grid grid-cols-2 gap-10 auto-cols-fr border-0 border-amber-200">
           {Stack.map((item) => (
             <div key={item.id}>
-              {item.text1 && (
-                <p className="font-AT text-xl mb-2">{item.text1}</p>
-              )}
-
-              <ul className="font-Inter text-gray-300 space-y-1">
-                {item.text2 && <li>• {item.text2}</li>}
-                {item.text3 && <li>• {item.text3}</li>}
-                {item.text4 && <li>• {item.text4}</li>}
-              </ul>
+              <TechStackCard
+                text1={item.text1}
+                text2={item.text2}
+                text3={item.text3}
+                text4={item.text4}
+              />
             </div>
           ))}
         </div>

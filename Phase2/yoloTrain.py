@@ -48,6 +48,44 @@ val_images = check_folder(val_img_dir)
 # -----------------------------
 # Convert COCO JSON -> YOLO txt
 # -----------------------------
+def coco_bbox_to_yolo(coco_json, yolo_label_dir, target_labels):
+    os.makedirs(yolo_label_dir, exist_ok=True)
+
+    with open(coco_json) as f:
+        data = json.load(f)
+
+    # Safer mapping (important)
+    cat_name_to_id = {name: i for i, name in enumerate(target_labels)}
+
+    img_id_to_filename = {img['id']: img['file_name'] for img in data['images']}
+    img_id_to_info = {img['id']: img for img in data['images']}
+
+    for ann in data['annotations']:
+        # Get category name
+        cat = next(c for c in data['categories'] if c['id'] == ann['category_id'])
+        cat_name = cat['name']
+
+        if cat_name not in target_labels:
+            continue
+
+        img_file = img_id_to_filename[ann['image_id']]
+        txt_file = os.path.join(yolo_label_dir, os.path.splitext(img_file)[0] + '.txt')
+
+        img_info = img_id_to_info[ann['image_id']]
+        W, H = img_info['width'], img_info['height']
+
+        # COCO bbox: [x, y, width, height]
+        x, y, w, h = ann['bbox']
+
+        # Convert to YOLO format
+        x_center = (x + w / 2) / W
+        y_center = (y + h / 2) / H
+        w /= W
+        h /= H
+
+        with open(txt_file, 'a') as f:
+            f.write(f"{cat_name_to_id[cat_name]} {x_center} {y_center} {w} {h}\n")
+
 def coco_seg_to_yolo(coco_json, img_dir, yolo_label_dir, target_labels):
     os.makedirs(yolo_label_dir, exist_ok=True)
     with open(coco_json) as f:
@@ -80,6 +118,7 @@ def coco_seg_to_yolo(coco_json, img_dir, yolo_label_dir, target_labels):
             with open(txt_file, 'a') as f:
                 f.write(str(cat_name_to_id[cat_name]) + " " + " ".join(map(str, flat)) + "\n")
 
+#change this func
 coco_seg_to_yolo(train_json, train_img_dir, train_labels_dir, target_labels)
 coco_seg_to_yolo(val_json, val_img_dir, val_labels_dir, target_labels)
 
@@ -116,6 +155,7 @@ print(f"YOLO dataset YAML created at {yaml_path}")
 # -----------------------------
 # Train YOLOv8
 # -----------------------------
+# YOLO('yolov8s.pt')
 model = YOLO('yolov8s-seg.pt')
 
 print("Starting YOLO training...")
@@ -126,5 +166,5 @@ model.train(
     imgsz=img_size,
     lr0=1e-4,
     project='yolo_corrosion',
-    name='yolov8_corrosionV4'
+    name='yolov8_corrosionV5'
 )

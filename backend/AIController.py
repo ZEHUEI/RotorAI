@@ -5,6 +5,8 @@ from google.cloud import storage
 YOLO_MODEL_PATH = "/tmp/best.pt"
 TENSOR_MODEL_PATH ="/tmp/best_unet2_corrosion.h5"
 
+API_KEY = os.environ.get("API_SECRET")
+
 def download_model():
     client = storage.Client()
     bucket = client.bucket("rotor-ai-models")
@@ -44,6 +46,12 @@ from ultralytics import YOLO
 from Phase1.PostProcess import detect_rust_and_cracks
 from Phase2.YOLOapi import detect_frame
 
+def check_api_key():
+    client_key = request.headers.get("x-api-key")
+    if client_key != API_KEY:
+        return False
+    return True
+
 #-- google cloud path
 yolo_model = YOLO(YOLO_MODEL_PATH)
 yolo_model.to("cpu")
@@ -53,7 +61,7 @@ WEIGHTS_PATH = TENSOR_MODEL_PATH
 # yolo_model = YOLO('yolo_corrosion/yolov8_corrosionV2/weights/best.pt')
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["https://rotor-ai.vercel.app"])
 
 def image_to_base64(img_np):
     img_pil = Image.fromarray(img_np)
@@ -97,6 +105,8 @@ print("loaded success")
 # ---------------- API ----------------
 @app.route("/predict", methods=["POST"])
 def predict():
+    if not check_api_key():
+        return jsonify({"error": "unauthorized"}), 401
     if "image" not in request.files:
         return jsonify({"error": "no images provided"}),400
 
@@ -151,6 +161,9 @@ def decode_image(data_url):
 
 @app.route("/detect", methods=["POST"])
 def detect():
+    if not check_api_key():
+        return jsonify({"error": "unauthorized"}), 401
+
     data = request.json
     img = decode_image(data["image"])
     print("Image shape:", img.shape)

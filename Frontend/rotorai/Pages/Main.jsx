@@ -83,7 +83,7 @@ const Main = () => {
     formData.append('image', images[0].file);
 
     try {
-      const res = await axios.post(`${BACKEND_URL}/predict`, formData, {
+      const res = await axios.post(`/api/predict`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

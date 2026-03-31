@@ -69,7 +69,7 @@ const YOLO = () => {
     const imageBase64 = offScreenCanvas.toDataURL('image/jpeg', 0.8); // 0.8 quality for speed
 
     try {
-      const res = await axios.post(`${BACKEND_URL}/detect`, {
+      const res = await axios.post(`/api/detect`, {
         image: imageBase64,
       });
 

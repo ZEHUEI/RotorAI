@@ -87,7 +87,7 @@ focal = BinaryFocalLoss(gamma=2.0,alpha=0.25)
 bce = tf.keras.losses.BinaryCrossentropy()
 
 def mean_iou_custom(y_true, y_pred, smooth=1e-6):
-    y_pred = tf.cast(y_pred > 0.50, tf.float32)
+    y_pred = tf.cast(y_pred > 0.25, tf.float32)
     intersection = tf.reduce_sum(y_true * y_pred,axis=[1,2,3])
     union = tf.reduce_sum(y_true,axis=[1,2,3]) + tf.reduce_sum(y_pred, axis=[1,2,3]) - intersection
     iou=(intersection + smooth) / (union + smooth)
@@ -98,7 +98,7 @@ def weighted_loss(y_true, y_pred):
     y_pred = tf.cast(y_pred, tf.float32)
     bce_loss = tf.keras.losses.binary_crossentropy(y_true, y_pred)
     bce_loss = tf.reduce_mean(bce_loss)
-    return (15.0 * dice(y_true, y_pred)) + (5.0 * focal(y_true, y_pred)) + (5.0 * bce_loss)
+    return (8.0 * dice(y_true, y_pred)) + (5.0 * focal(y_true, y_pred)) + (5.0 * bce_loss)
 
 #-----------------------------------------------------------------
 #Augment
