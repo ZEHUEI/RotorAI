@@ -1,7 +1,7 @@
 export async function POST(req) {
   const formData = await req.formData();
 
-  const res = await fetch(process.env.BACKEND_URL + '/detect', {
+  const res = await fetch(process.env.NEXT_PUBLIC_BACKEND_URL + '/detect', {
     method: 'POST',
     body: formData,
     headers: {
