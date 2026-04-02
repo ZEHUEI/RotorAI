@@ -33,7 +33,7 @@ TARGET_SIZE = (512, 512)
 BACKBONE = "resnet50"
 THRESHOLD = 0.275
 
-WEIGHTS_PATH = r"C:\Users\Ze Huei\PycharmProjects\RotorAI\Phase1\best_unet3_corrosion.h5"
+WEIGHTS_PATH = r"/Phase1/Ignore/best_unet3_corrosion.h5"
 yolo_model = YOLO('../yolo_corrosion/yolov8_corrosionV2/weights/best.pt')
 
 preprocess_input = sm.get_preprocessing(BACKBONE)

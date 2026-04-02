@@ -172,5 +172,66 @@ def detect():
 
     return jsonify(detections)
 
+#this is for 3DGS
+import uuid
+
+def create_job_id():
+    return f"job_{uuid.uuid4().hex[:8]}"
+
+@app.route("/process-video",methods=["POST"])
+def process_video():
+    if not check_api_key():
+        return jsonify({"error": "unauth"}),401
+    if "video" not in request.files:
+        return jsonify({"error":"no video provided"}),400
+
+    file = request.files["video"]
+
+    job_id = create_job_id()
+
+    local_path = f"/tmp/{job_id}.mp4"
+    file.save(local_path)
+
+    client = storage.Client()
+    bucket = client.bucket("rotor-ai-jobs")
+
+    blob = bucket.blob(f"jobs/{job_id}/input.mp4")
+    blob.upload_from_filename(local_path)
+
+    return jsonify({
+        "message": "video uploaded",
+        "job_id": job_id
+    })
+
+# #processing
+# @app.route("/run-job/<job_id>", methods=["POST"])
+# def run_job(job_id):
+#     if not check_api_key():
+#         return jsonify({"error": "unauthorized"}), 401
+#
+#     client = storage.Client()
+#     bucket = client.bucket("rotor-ai-jobs")
+#
+#     # Download video
+#     blob = bucket.blob(f"jobs/{job_id}/input.mp4")
+#     local_video = f"/tmp/{job_id}.mp4"
+#     blob.download_to_filename(local_video)
+#
+#     # Create working dirs
+#     base_path = f"/tmp/{job_id}"
+#     frames_dir = f"{base_path}/images"
+#     masks_dir = f"{base_path}/masks"
+#
+#     os.makedirs(frames_dir, exist_ok=True)
+#     os.makedirs(masks_dir, exist_ok=True)
+#
+#     # 1. Extract frames
+#     extract_frames(local_video, frames_dir, fps=3)
+#
+#     # 2. Run AI
+#     process_frames(frames_dir, masks_dir)
+#
+#     return jsonify({"status": "frames + AI done"})
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080, debug=True)

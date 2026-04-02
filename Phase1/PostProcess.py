@@ -4,32 +4,72 @@ import numpy as np
 #-----------------------
 #POST PROCESSING: RUST AND CRACKS
 #------------------------
-def detect_rust_and_cracks(image,corrosion_mask):
-    lab = cv2.cvtColor(image,cv2.COLOR_RGB2Lab)
+def detect_rust_and_cracks(image,corrosion_mask, confidence_map=None):
+    # lab = cv2.cvtColor(image,cv2.COLOR_RGB2Lab)
+    #
+    # #L = lightness, a channel= X G/Y b channel= X Y/Dark brown
+    # lower_rust = np.array([15, 125, 130])
+    # upper_rust = np.array([140, 170, 210])
+    # color_mask = cv2.inRange(lab, lower_rust, upper_rust)
+    #
+    # rust_mask = cv2.bitwise_and(color_mask, color_mask, mask=corrosion_mask)
+    #
+    # num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(rust_mask, connectivity=8)
+    # clean_rust = np.zeros_like(rust_mask)
+    #
+    # for i in range(1, num_labels):
+    #     area = stats[i, cv2.CC_STAT_AREA]
+    #     w = stats[i, cv2.CC_STAT_WIDTH]
+    #     h = stats[i, cv2.CC_STAT_HEIGHT]
+    #     aspect_ratio = max(w, h) / (min(w, h) + 1e-5)
+    #
+    #     if area > 350 and aspect_ratio < 4.0:
+    #         clean_rust[labels == i] = 255
+    #
+    # rust_mask = clean_rust
 
-    #L = lightness, a channel= X G/Y b channel= X Y/Dark brown
-    lower_rust = np.array([40, 135, 140])
-    upper_rust = np.array([120, 150, 190])
-    color_mask = cv2.inRange(lab, lower_rust, upper_rust)
+    kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
+    kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
 
-    rust_mask = cv2.bitwise_and(color_mask, color_mask, mask=corrosion_mask)
+    rust_mask = corrosion_mask.copy()
+    rust_mask = cv2.morphologyEx(rust_mask, cv2.MORPH_CLOSE, kernel_close)  # fill gaps
+    rust_mask = cv2.morphologyEx(rust_mask, cv2.MORPH_OPEN, kernel_open)  # remove specks
 
+    # Optional: use color as a BOOST not a GATE
+    # If color matches, keep it. If AI says rust but color doesn't match, still keep it.
+    lab = cv2.cvtColor(image, cv2.COLOR_RGB2Lab)
+
+    # Wider range to catch dry/dark rust too
+    lower_rust_orange = np.array([20, 130, 130])
+    upper_rust_orange = np.array([180, 175, 200])  # wider than before
+
+    # Dark dry rust (like IMG 1) — low lightness, slight warm tone
+    lower_rust_dark = np.array([0, 128, 128])
+    upper_rust_dark = np.array([80, 145, 155])
+
+    color_mask_orange = cv2.inRange(lab, lower_rust_orange, upper_rust_orange)
+    color_mask_dark = cv2.inRange(lab, lower_rust_dark, upper_rust_dark)
+    color_mask_any = cv2.bitwise_or(color_mask_orange, color_mask_dark)
+
+    # AI mask OR color match — union instead of intersection
+    rust_mask = cv2.bitwise_or(rust_mask, cv2.bitwise_and(
+        color_mask_any, color_mask_any, mask=corrosion_mask
+    ))
+
+    # Connected component filter
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(rust_mask, connectivity=8)
     clean_rust = np.zeros_like(rust_mask)
-
     for i in range(1, num_labels):
         area = stats[i, cv2.CC_STAT_AREA]
         w = stats[i, cv2.CC_STAT_WIDTH]
         h = stats[i, cv2.CC_STAT_HEIGHT]
         aspect_ratio = max(w, h) / (min(w, h) + 1e-5)
-
-        if area > 350 and aspect_ratio < 4.0:
+        if area > 200 and aspect_ratio < 5.0:  # loosened from 350 & 4.0
             clean_rust[labels == i] = 255
-
     rust_mask = clean_rust
 
+    #CRACKS-----------------
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-
     clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(6, 6))
     enhanced_gray = clahe.apply(gray)
 
@@ -60,31 +100,20 @@ def detect_rust_and_cracks(image,corrosion_mask):
         mask_component = (labels == i).astype(np.uint8)
         contours, _ = cv2.findContours(mask_component, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        if contours:
-            cnt = contours[0]
-            # Calculate Perimeter
-            perimeter = cv2.arcLength(cnt, True)
+        if not contours:
+            continue
 
-            # Convex Hull and Solidity
-            convex_hull_area = cv2.contourArea(cv2.convexHull(cnt))
-            solidity = float(area) / (convex_hull_area + 1e-5)
+        cnt = contours[0]
+        perimeter = cv2.arcLength(cnt, True)
+        convex_hull_area = cv2.contourArea(cv2.convexHull(cnt))
+        solidity = float(area) / (convex_hull_area + 1e-5)
+        complexity = (perimeter ** 2) / (area + 1e-5)
 
-            if area > 400 and solidity < 0.9:
-                clean_rust[labels == i] = 255
+        is_straight_crack = aspect_ratio > 1.7
+        is_fine_crack = complexity > 25 and solidity < 0.6
+        is_micro_crack = area > 5 and aspect_ratio > 2.2
 
-            # --- NEW TUNING LOGIC ---
-            # 1. High aspect ratio (clear straight lines)
-            is_straight_crack = aspect_ratio > 1.7
-
-            # 2. High perimeter complexity (curved/diagonal fine cracks)
-            # A circle is ~12.5; higher values mean more 'line-like'
-            complexity = (perimeter ** 2) / (area + 1e-5)
-            is_fine_crack = complexity > 25 and solidity < 0.6
-
-            # 3. Small but very thin (micro-cracks)
-            is_micro_crack = area > 5 and aspect_ratio > 2.2
-
-            if is_straight_crack or is_fine_crack or is_micro_crack:
-                final_cracks[labels == i] = 255
+        if is_straight_crack or is_fine_crack or is_micro_crack:
+            final_cracks[labels == i] = 255
 
     return rust_mask, final_cracks

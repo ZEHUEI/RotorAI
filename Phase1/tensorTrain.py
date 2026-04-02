@@ -49,6 +49,18 @@ val_img="../Data/valid"
 train_json = "../Data/train/_annotations.coco.json"
 val_json   = "../Data/valid/_annotations.coco.json"
 
+with open("../Data/train/_annotations.coco.json") as f:
+    coco = json.load(f)
+
+total_images = len(coco['images'])
+images_with_annotations = len(set(ann['image_id'] for ann in coco['annotations']))
+empty_images = total_images - images_with_annotations
+
+print(f"Total images: {total_images}")
+print(f"Images WITH rust annotations: {images_with_annotations}")
+print(f"Images with NO annotation (hard negatives): {empty_images}")
+print(f"Hard negative ratio: {empty_images/total_images*100:.1f}%")
+
 TARGET_SIZE = (768, 768)
 BATCH_SIZE = 4
 TARGET_LABELS = ["corrosion"]
@@ -87,7 +99,7 @@ focal = BinaryFocalLoss(gamma=2.0,alpha=0.25)
 bce = tf.keras.losses.BinaryCrossentropy()
 
 def mean_iou_custom(y_true, y_pred, smooth=1e-6):
-    y_pred = tf.cast(y_pred > 0.25, tf.float32)
+    y_pred = tf.cast(y_pred > 0.4, tf.float32)
     intersection = tf.reduce_sum(y_true * y_pred,axis=[1,2,3])
     union = tf.reduce_sum(y_true,axis=[1,2,3]) + tf.reduce_sum(y_pred, axis=[1,2,3]) - intersection
     iou=(intersection + smooth) / (union + smooth)
@@ -98,7 +110,8 @@ def weighted_loss(y_true, y_pred):
     y_pred = tf.cast(y_pred, tf.float32)
     bce_loss = tf.keras.losses.binary_crossentropy(y_true, y_pred)
     bce_loss = tf.reduce_mean(bce_loss)
-    return (8.0 * dice(y_true, y_pred)) + (5.0 * focal(y_true, y_pred)) + (5.0 * bce_loss)
+    #change to 10:5::5
+    return (10.0 * dice(y_true, y_pred)) + (5.0 * focal(y_true, y_pred)) + (5.0 * bce_loss)
 
 #-----------------------------------------------------------------
 #Augment
@@ -112,9 +125,9 @@ geometric_augment = tf.keras.Sequential([
 
 photometric_augment = tf.keras.Sequential([
     #brightness,contrast and gamma(shadow)
-    layers.RandomContrast(0.4),
-    layers.RandomBrightness(0.3),
-layers.Lambda(lambda x: tf.image.random_hue(x, 0.05)),
+    layers.RandomContrast(0.15),
+    layers.RandomBrightness(0.15),
+layers.Lambda(lambda x: tf.image.random_hue(x, 0.03)),
 layers.Lambda(lambda x: tf.image.adjust_gamma(x, gamma=tf.cast(tf.random.uniform([], 0.5, 1.5),x.dtype))),
 layers.Lambda(lambda x: tf.cond(
         tf.random.uniform([]) > 0.5,
@@ -160,7 +173,7 @@ def apply_clahe(img_np):
     l, a, b = cv2.split(lab)
 
     # Create CLAHE object (clipLimit 3.0 is a good strong baseline for shadows)
-    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
     cl = clahe.apply(l)
 
     limg = cv2.merge((cl, a, b))
@@ -341,20 +354,33 @@ model = tf.keras.Model(
     outputs=outputs
 )
 
-#optimizer
-optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
-optimizer = mixed_precision.LossScaleOptimizer(optimizer)
+PREVIOUS_WEIGHTS = "thisisME.h5"
+if os.path.exists(PREVIOUS_WEIGHTS):
+    print(f"Loading weights from {PREVIOUS_WEIGHTS} to continue training...")
+    model.load_weights(PREVIOUS_WEIGHTS, by_name=True, skip_mismatch=True)
+    for layer in model.layers:
+        if any(x in layer.name for x in ['stage1', 'stage2', 'stage3', 'conv1']):
+            layer.trainable = False
 
+    print(f"Trainable layers: {sum(1 for l in model.layers if l.trainable)}")
+    print(f"Frozen layers: {sum(1 for l in model.layers if not l.trainable)}")
+
+    print("\n--- Layer Freeze Check ---")
+    for layer in model.layers:
+        if not layer.trainable:
+            print(f"FROZEN: {layer.name}")
+    print("--- End Check ---\n")
+
+else:
+    print("No previous weights found. Starting training from scratch.")
+
+
+#optimizer
+optimizer = tf.keras.optimizers.Adam(learning_rate=5e-6)
+optimizer = mixed_precision.LossScaleOptimizer(optimizer)
 model.compile(optimizer=optimizer,loss=weighted_loss,metrics=[mean_iou_custom])
 
-# PREVIOUS_WEIGHTS = "best_unet7_with_faces_corrosion.h5" # Or "best_unet2_corrosion.h5"
-# if os.path.exists(PREVIOUS_WEIGHTS):
-#     print(f"Loading weights from {PREVIOUS_WEIGHTS} to continue training...")
-#     model.load_weights(PREVIOUS_WEIGHTS, by_name=True, skip_mismatch=True)
-# else:
-#     print("No previous weights found. Starting training from scratch.")
-
-EPOCHS =100
+EPOCHS =50
 
 #--------------
 #validation usage
@@ -378,9 +404,9 @@ val_dataset = tf.data.Dataset.from_tensor_slices((
 #-------------
 #unet 7 now! 27/3/2026 00:44AM
 callbacks=[
-    EarlyStopping(patience=15,verbose=1,monitor='val_mean_iou_custom',mode='max',restore_best_weights=True),
-    ModelCheckpoint('best_unet11_with_faces_corrosion.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max'),
-    ReduceLROnPlateau(monitor='val_mean_iou_custom', factor=0.2, patience=3, min_lr=1e-7, verbose=1,mode='max')
+    EarlyStopping(patience=5,verbose=1,monitor='val_mean_iou_custom',mode='max',restore_best_weights=True),
+    ModelCheckpoint('best_lastdance4.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max'),
+    ReduceLROnPlateau(monitor='val_mean_iou_custom', factor=0.3, patience=2, min_lr=1e-7, verbose=1,mode='max')
 ]
 
 #---------
@@ -403,7 +429,7 @@ def train():
     )
 
     # Save the weights so you can reload the model later without retraining
-    model.save_weights("unet11_with_faces_corrosion.h5")
+    model.save_weights("lastdance4.h5")
     print("Training finished and weights saved.")
 
     print("Generating training plots...")
@@ -430,8 +456,8 @@ def train():
     plt.legend()
 
     plt.tight_layout()
-    plt.savefig('unet11_with_faces_corrosion.png')
-    print("Graphs saved as 'unet11_with_faces_corrosion.png'. Check this to see the learning curve!")
+    plt.savefig('lastdance4.png')
+    print("Graphs saved as 'lastdance4.png'. Check this to see the learning curve!")
 
 if __name__ == "__main__":
     train()
