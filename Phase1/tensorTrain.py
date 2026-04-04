@@ -99,7 +99,7 @@ focal = BinaryFocalLoss(gamma=2.0,alpha=0.25)
 bce = tf.keras.losses.BinaryCrossentropy()
 
 def mean_iou_custom(y_true, y_pred, smooth=1e-6):
-    y_pred = tf.cast(y_pred > 0.4, tf.float32)
+    y_pred = tf.cast(y_pred > 0.65, tf.float32)
     intersection = tf.reduce_sum(y_true * y_pred,axis=[1,2,3])
     union = tf.reduce_sum(y_true,axis=[1,2,3]) + tf.reduce_sum(y_pred, axis=[1,2,3]) - intersection
     iou=(intersection + smooth) / (union + smooth)
@@ -111,7 +111,7 @@ def weighted_loss(y_true, y_pred):
     bce_loss = tf.keras.losses.binary_crossentropy(y_true, y_pred)
     bce_loss = tf.reduce_mean(bce_loss)
     #change to 10:5::5
-    return (10.0 * dice(y_true, y_pred)) + (5.0 * focal(y_true, y_pred)) + (5.0 * bce_loss)
+    return (10.0 * dice(y_true, y_pred)) + (5.0 * focal(y_true, y_pred)) + (8.0 * bce_loss)
 
 #-----------------------------------------------------------------
 #Augment
@@ -173,7 +173,7 @@ def apply_clahe(img_np):
     l, a, b = cv2.split(lab)
 
     # Create CLAHE object (clipLimit 3.0 is a good strong baseline for shadows)
-    clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
+    clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
     cl = clahe.apply(l)
 
     limg = cv2.merge((cl, a, b))
@@ -354,13 +354,25 @@ model = tf.keras.Model(
     outputs=outputs
 )
 
-PREVIOUS_WEIGHTS = "thisisME.h5"
+PREVIOUS_WEIGHTS = "best_lastdance8.h5"
 if os.path.exists(PREVIOUS_WEIGHTS):
     print(f"Loading weights from {PREVIOUS_WEIGHTS} to continue training...")
     model.load_weights(PREVIOUS_WEIGHTS, by_name=True, skip_mismatch=True)
     for layer in model.layers:
-        if any(x in layer.name for x in ['stage1', 'stage2', 'stage3', 'conv1']):
+        # Only freeze encoder stages 1-3, nothing else
+        should_freeze = (
+                layer.name.startswith('stage1') or
+                layer.name.startswith('stage2')
+                # or
+                # layer.name.startswith('stage3')
+        )
+        # Explicitly never freeze decoder no matter what
+        if 'decoder' in layer.name:
+            layer.trainable = True
+        elif should_freeze:
             layer.trainable = False
+        else:
+            layer.trainable = True
 
     print(f"Trainable layers: {sum(1 for l in model.layers if l.trainable)}")
     print(f"Frozen layers: {sum(1 for l in model.layers if not l.trainable)}")
@@ -380,7 +392,7 @@ optimizer = tf.keras.optimizers.Adam(learning_rate=5e-6)
 optimizer = mixed_precision.LossScaleOptimizer(optimizer)
 model.compile(optimizer=optimizer,loss=weighted_loss,metrics=[mean_iou_custom])
 
-EPOCHS =50
+EPOCHS =100
 
 #--------------
 #validation usage
@@ -404,9 +416,9 @@ val_dataset = tf.data.Dataset.from_tensor_slices((
 #-------------
 #unet 7 now! 27/3/2026 00:44AM
 callbacks=[
-    EarlyStopping(patience=5,verbose=1,monitor='val_mean_iou_custom',mode='max',restore_best_weights=True),
-    ModelCheckpoint('best_lastdance4.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max'),
-    ReduceLROnPlateau(monitor='val_mean_iou_custom', factor=0.3, patience=2, min_lr=1e-7, verbose=1,mode='max')
+    EarlyStopping(patience=10,verbose=1,monitor='val_mean_iou_custom',mode='max',restore_best_weights=True),
+    ModelCheckpoint('best_lastdance9.h5',verbose=1,monitor='val_mean_iou_custom',save_best_only=True,mode='max'),
+    ReduceLROnPlateau(monitor='val_mean_iou_custom', factor=0.3, patience=5, min_lr=1e-6, verbose=1,mode='max')
 ]
 
 #---------
@@ -429,7 +441,7 @@ def train():
     )
 
     # Save the weights so you can reload the model later without retraining
-    model.save_weights("lastdance4.h5")
+    model.save_weights("lastdance9.h5")
     print("Training finished and weights saved.")
 
     print("Generating training plots...")
@@ -456,8 +468,8 @@ def train():
     plt.legend()
 
     plt.tight_layout()
-    plt.savefig('lastdance4.png')
-    print("Graphs saved as 'lastdance4.png'. Check this to see the learning curve!")
+    plt.savefig('lastdance9.png')
+    print("Graphs saved as 'lastdance9.png'. Check this to see the learning curve!")
 
 if __name__ == "__main__":
     train()

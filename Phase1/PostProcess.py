@@ -5,47 +5,36 @@ import numpy as np
 #POST PROCESSING: RUST AND CRACKS
 #------------------------
 def detect_rust_and_cracks(image,corrosion_mask, confidence_map=None):
-    # lab = cv2.cvtColor(image,cv2.COLOR_RGB2Lab)
-    #
-    # #L = lightness, a channel= X G/Y b channel= X Y/Dark brown
-    # lower_rust = np.array([15, 125, 130])
-    # upper_rust = np.array([140, 170, 210])
-    # color_mask = cv2.inRange(lab, lower_rust, upper_rust)
-    #
-    # rust_mask = cv2.bitwise_and(color_mask, color_mask, mask=corrosion_mask)
-    #
-    # num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(rust_mask, connectivity=8)
-    # clean_rust = np.zeros_like(rust_mask)
-    #
-    # for i in range(1, num_labels):
-    #     area = stats[i, cv2.CC_STAT_AREA]
-    #     w = stats[i, cv2.CC_STAT_WIDTH]
-    #     h = stats[i, cv2.CC_STAT_HEIGHT]
-    #     aspect_ratio = max(w, h) / (min(w, h) + 1e-5)
-    #
-    #     if area > 350 and aspect_ratio < 4.0:
-    #         clean_rust[labels == i] = 255
-    #
-    # rust_mask = clean_rust
+    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+
+    mask0 = cv2.inRange(hsv, np.array([0, 75, 70]), np.array([19, 190, 120]))
+    mask1 = cv2.inRange(hsv, np.array([170, 70, 70]), np.array([180, 200, 120]))
+    mask2 = cv2.inRange(hsv, np.array([0, 40, 50]), np.array([25, 100, 80]))
+
+    # Combined rust color mask
+    rust_color_mask = cv2.bitwise_or(cv2.bitwise_or(mask0, mask1), mask2)
+
+    # Only keep AI mask pixels that are also rust-colored
+    corrosion_mask = corrosion_mask.copy()
+    corrosion_mask[rust_color_mask == 0] = 0
 
     kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
     kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-
     rust_mask = corrosion_mask.copy()
-    rust_mask = cv2.morphologyEx(rust_mask, cv2.MORPH_CLOSE, kernel_close)  # fill gaps
-    rust_mask = cv2.morphologyEx(rust_mask, cv2.MORPH_OPEN, kernel_open)  # remove specks
+    rust_mask = cv2.morphologyEx(rust_mask, cv2.MORPH_CLOSE, kernel_close)
+    rust_mask = cv2.morphologyEx(rust_mask, cv2.MORPH_OPEN, kernel_open)
 
     # Optional: use color as a BOOST not a GATE
     # If color matches, keep it. If AI says rust but color doesn't match, still keep it.
     lab = cv2.cvtColor(image, cv2.COLOR_RGB2Lab)
 
     # Wider range to catch dry/dark rust too
-    lower_rust_orange = np.array([20, 130, 130])
-    upper_rust_orange = np.array([180, 175, 200])  # wider than before
+    lower_rust_orange = np.array([20, 134, 132])
+    upper_rust_orange = np.array([95, 168, 188])
 
     # Dark dry rust (like IMG 1) — low lightness, slight warm tone
-    lower_rust_dark = np.array([0, 128, 128])
-    upper_rust_dark = np.array([80, 145, 155])
+    lower_rust_dark = np.array([0, 150, 134])
+    upper_rust_dark = np.array([40, 155, 150])
 
     color_mask_orange = cv2.inRange(lab, lower_rust_orange, upper_rust_orange)
     color_mask_dark = cv2.inRange(lab, lower_rust_dark, upper_rust_dark)

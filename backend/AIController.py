@@ -3,7 +3,7 @@ import os
 from google.cloud import storage
 
 YOLO_MODEL_PATH = "/tmp/best.pt"
-TENSOR_MODEL_PATH ="/tmp/best_unet2_corrosion.h5"
+TENSOR_MODEL_PATH ="/tmp/final_TF_model.h5"
 
 API_KEY = os.environ.get("API_SECRET")
 
@@ -18,7 +18,7 @@ def download_model():
 
     if not os.path.exists(TENSOR_MODEL_PATH):
         print("Downloading Tensor model...")
-        blob = bucket.blob("best_unet2_corrosion.h5")  # 🔁 match your uploaded file name
+        blob = bucket.blob("final_TF_model.h5")  # 🔁 match your uploaded file name
         blob.download_to_filename(TENSOR_MODEL_PATH)
 
     print("Model downloaded!")

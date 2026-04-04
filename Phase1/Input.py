@@ -1,7 +1,4 @@
 import os
-
-from skimage.filters.rank import threshold
-
 from Phase1.PostProcess import detect_rust_and_cracks
 os.environ["SM_FRAMEWORK"] = "tf.keras"
 import cv2
@@ -34,8 +31,8 @@ model = tf.keras.Model(
     outputs=outputs
 )
 #---------------------------
-#current best : "../Outcomes/Input/3032026_737PM_BEST.h5" test: "best_lastdance3.h5"
-WEIGHTS_FILE = "thisisME.h5"
+#current best : "best_lastdance7.h5" test: "best_lastdance8.h5"
+WEIGHTS_FILE = "best_lastdance8.h5"
 try:
     model.load_weights(WEIGHTS_FILE)
     print("Model output test:", model(np.zeros((1, 768, 768, 3))).numpy().mean())
@@ -51,13 +48,13 @@ preprocess_input = sm.get_preprocessing(BACKBONE)
 def apply_clahe(img_np):
     lab = cv2.cvtColor(img_np, cv2.COLOR_RGB2LAB)
     l, a, b = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
     cl = clahe.apply(l)
     limg = cv2.merge((cl, a, b))
     return cv2.cvtColor(limg, cv2.COLOR_LAB2RGB)
 
 
-def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.2):
+def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.65):
     img = cv2.imread(image_path)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     original_img = img.copy()
@@ -94,34 +91,35 @@ def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.2):
 
 
 # --- Test Execution Block-----------------------------------------------------------
-#"../Outcomes/Input/ahahahhaa.jpg" "../Outcomes/Input/grass.jpg" "../Outcomes/Input/motor2.jpg" //1 2 3 4
+# #"../Outcomes/Input/ahahahhaa.jpg" "../Outcomes/Input/grass.jpg" "../Outcomes/Input/motor2.jpg" //1 2 3 4 "../Outcomes/Input/girl.jpg"
+TEST321 = "../Outcomes/Input/checking.jpeg"
+TEST654 = "../Outcomes/Input/grass.jpg"
+TEST = "../Outcomes/Input/motor2.jpg"
+# TEST321 = "../Outcomes/Input/motor3.jpg"
+# TEST654 = "../Outcomes/Input/motor4.jpg"
+# TEST = "../Outcomes/Input/ahahahhaa.jpg"
 
-TESTING123 = "../Outcomes/Input/qc.jpg"
-TESTING456 = "../Outcomes/Input/motor2.jpg"
-TEST_IMAGE_PATH = "../Outcomes/Input/6ce2cdb831109b94c2f15bb38524bdec-0_jpg.rf.131fb58aa9f639081e4e62c9b41bf210.jpg"
-
-if os.path.exists(TESTING123):
+if os.path.exists(TEST):
     print("\n--- Starting Inference ---")
-    original_image, corrosion_mask, rust_mask, crack_mask,raw_pred_1  = predict_image(model, TESTING123)
-    original_image2, corrosion_mask2, rust_mask2, crack_mask2, raw_pred_2 = predict_image(model, TESTING456)
-    original_image3, corrosion_mask3, rust_mask3, crack_mask3, raw_pred_3 = predict_image(model, TEST_IMAGE_PATH)
+    original_image, corrosion_mask, rust_mask, crack_mask,raw_pred_1  = predict_image(model, TEST321)
+    original_image2, corrosion_mask2, rust_mask2, crack_mask2, raw_pred_2 = predict_image(model, TEST654)
+    original_image3, corrosion_mask3, rust_mask3, crack_mask3, raw_pred_3 = predict_image(model, TEST)
 
-
-    print(f"Test Image: {os.path.basename(TESTING123)}")
+    print(f"Test Image: {os.path.basename(TEST321)}")
     print(f"Predicted Crack Pixels: {np.sum(crack_mask)}")
     print(f"Predicted Rust Pixels: {np.sum(rust_mask)}")
 
-    print(f"Test Image: {os.path.basename(TESTING456)}")
+    print(f"Test Image: {os.path.basename(TEST654)}")
     print(f"Predicted Crack Pixels: {np.sum(crack_mask2)}")
     print(f"Predicted Rust Pixels: {np.sum(rust_mask2)}")
 
-    print(f"Test Image: {os.path.basename(TEST_IMAGE_PATH)}")
+    print(f"Test Image: {os.path.basename(TEST)}")
     print(f"Predicted Crack Pixels: {np.sum(crack_mask3)}")
     print(f"Predicted Rust Pixels: {np.sum(rust_mask3)}")
 
     # --- Visualization ---
     import matplotlib.pyplot as plt
-    threshold = 0
+    threshold = 0.6
     plt.figure(figsize=(15, 6))
 
     # ori

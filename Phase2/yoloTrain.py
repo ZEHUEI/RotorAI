@@ -28,9 +28,9 @@ train_labels_dir = os.path.join(BASE_DIR, "../Data/trainYOLO/labels")
 val_labels_dir   = os.path.join(BASE_DIR, "../Data/validYOLO/labels")
 
 target_labels = ["corrosion"]
-batch_size = 4
-img_size = 512
-epochs = 100
+batch_size = 8
+img_size = 768
+epochs = 300
 
 # -----------------------------
 # Check that images exist
@@ -119,9 +119,10 @@ def coco_seg_to_yolo(coco_json, img_dir, yolo_label_dir, target_labels):
                 f.write(str(cat_name_to_id[cat_name]) + " " + " ".join(map(str, flat)) + "\n")
 
 #change this func
-coco_seg_to_yolo(train_json, train_img_dir, train_labels_dir, target_labels)
-coco_seg_to_yolo(val_json, val_img_dir, val_labels_dir, target_labels)
-
+# coco_seg_to_yolo(train_json, train_img_dir, train_labels_dir, target_labels)
+# coco_seg_to_yolo(val_json, val_img_dir, val_labels_dir, target_labels)
+coco_bbox_to_yolo(train_json, train_labels_dir, target_labels)
+coco_bbox_to_yolo(val_json, val_labels_dir, target_labels)
 # -----------------------------
 # Check labels exist
 # -----------------------------
@@ -156,7 +157,7 @@ print(f"YOLO dataset YAML created at {yaml_path}")
 # Train YOLOv8
 # -----------------------------
 # YOLO('yolov8s.pt')
-model = YOLO('yolov8s-seg.pt')
+model = YOLO('yolov8m.pt')
 
 print("Starting YOLO training...")
 model.train(
@@ -164,7 +165,38 @@ model.train(
     epochs=epochs,
     batch=batch_size,
     imgsz=img_size,
-    lr0=1e-4,
+    device=0,
+    #leartning rate
+    lr0=3e-4,
+    lrf=0.01,
+    warmup_epochs=5,
+    cos_lr=True,
+    weight_decay=5e-4,
+
+    mosaic=1.0,
+    mixup=0.15,
+    degrees=15.0,
+    shear=5.0,
+    perspective=0.0005,
+    fliplr=0.5,
+    flipud=0.1,
+    hsv_h=0.015,
+    hsv_s=0.7,
+    hsv_v=0.4,
+    scale=0.5,
+
+    dropout=0.1,
+    label_smoothing=0.05,
+
+    patience=50,
+    save_period=10,
+    cache='disk',
+    workers=8,
+
     project='yolo_corrosion',
-    name='yolov8_corrosionV5'
+    name='yolov8_corrosion_542026'
 )
+
+metrics = model.val()
+print(metrics.box.map)
+print(metrics.box.map50)
