@@ -32,7 +32,7 @@ model = tf.keras.Model(
 )
 #---------------------------
 #current best : "best_lastdance7.h5" test: "best_lastdance8.h5"
-WEIGHTS_FILE = "best_lastdance8.h5"
+WEIGHTS_FILE = "../backend/final_TF_model.h5"
 try:
     model.load_weights(WEIGHTS_FILE)
     print("Model output test:", model(np.zeros((1, 768, 768, 3))).numpy().mean())
@@ -92,12 +92,12 @@ def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.65):
 
 # --- Test Execution Block-----------------------------------------------------------
 # #"../Outcomes/Input/ahahahhaa.jpg" "../Outcomes/Input/grass.jpg" "../Outcomes/Input/motor2.jpg" //1 2 3 4 "../Outcomes/Input/girl.jpg"
-TEST321 = "../Outcomes/Input/checking.jpeg"
-TEST654 = "../Outcomes/Input/grass.jpg"
-TEST = "../Outcomes/Input/motor2.jpg"
-# TEST321 = "../Outcomes/Input/motor3.jpg"
-# TEST654 = "../Outcomes/Input/motor4.jpg"
-# TEST = "../Outcomes/Input/ahahahhaa.jpg"
+TEST321 = "../Outcomes/Input/checking.jpeg" #not that good
+TEST654 = "../Outcomes/Input/grass.jpg" #good
+TEST = "../Outcomes/Input/motor2.jpg" #good
+# TEST321 = "../Outcomes/Input/motor3.jpg" #good
+# TEST654 = "../Outcomes/Input/motor4.jpg" #ok
+# TEST = "../Outcomes/Input/ahahahhaa.jpg" #good
 
 if os.path.exists(TEST):
     print("\n--- Starting Inference ---")
@@ -119,7 +119,7 @@ if os.path.exists(TEST):
 
     # --- Visualization ---
     import matplotlib.pyplot as plt
-    threshold = 0.6
+    threshold = 0.65
     plt.figure(figsize=(15, 6))
 
     # ori

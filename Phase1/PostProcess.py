@@ -4,18 +4,27 @@ import numpy as np
 #-----------------------
 #POST PROCESSING: RUST AND CRACKS
 #------------------------
-def detect_rust_and_cracks(image,corrosion_mask, confidence_map=None):
+def detect_rust_and_cracks(image,corrosion_mask, confidence_map=None,conf_score=0.0):
     hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
 
     mask0 = cv2.inRange(hsv, np.array([0, 75, 70]), np.array([19, 190, 120]))
     mask1 = cv2.inRange(hsv, np.array([170, 70, 70]), np.array([180, 200, 120]))
     mask2 = cv2.inRange(hsv, np.array([0, 40, 50]), np.array([25, 100, 80]))
+    mask3 = cv2.inRange(hsv, np.array([10, 55, 100]), np.array([22, 120, 200]))
+    mask4 = cv2.inRange(hsv, np.array([5, 55, 40]), np.array([30, 255, 230]))
 
     # Combined rust color mask
-    rust_color_mask = cv2.bitwise_or(cv2.bitwise_or(mask0, mask1), mask2)
+    rust_color_mask = cv2.bitwise_or(
+        cv2.bitwise_or(cv2.bitwise_or(mask0, mask1), cv2.bitwise_or(mask2, mask3)),
+        mask4
+    )
 
     # Only keep AI mask pixels that are also rust-colored
     corrosion_mask = corrosion_mask.copy()
+
+    if conf_score < 0.55:
+        corrosion_mask[rust_color_mask == 0] = 0
+
     corrosion_mask[rust_color_mask == 0] = 0
 
     kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
@@ -36,9 +45,16 @@ def detect_rust_and_cracks(image,corrosion_mask, confidence_map=None):
     lower_rust_dark = np.array([0, 150, 134])
     upper_rust_dark = np.array([40, 155, 150])
 
+    lower_rust_corrosion_brown = np.array([20, 116, 145])
+    upper_rust_corrosion_brown = np.array([230, 150, 210])
+
+    color_mask_corrosion_brown = cv2.inRange(lab, lower_rust_corrosion_brown, upper_rust_corrosion_brown)
     color_mask_orange = cv2.inRange(lab, lower_rust_orange, upper_rust_orange)
     color_mask_dark = cv2.inRange(lab, lower_rust_dark, upper_rust_dark)
-    color_mask_any = cv2.bitwise_or(color_mask_orange, color_mask_dark)
+    color_mask_any = cv2.bitwise_or(
+        cv2.bitwise_or(color_mask_orange, color_mask_dark),
+        color_mask_corrosion_brown
+    )
 
     # AI mask OR color match — union instead of intersection
     rust_mask = cv2.bitwise_or(rust_mask, cv2.bitwise_and(
@@ -98,9 +114,9 @@ def detect_rust_and_cracks(image,corrosion_mask, confidence_map=None):
         solidity = float(area) / (convex_hull_area + 1e-5)
         complexity = (perimeter ** 2) / (area + 1e-5)
 
-        is_straight_crack = aspect_ratio > 1.7
-        is_fine_crack = complexity > 25 and solidity < 0.6
-        is_micro_crack = area > 5 and aspect_ratio > 2.2
+        is_straight_crack = aspect_ratio > 3.5
+        is_fine_crack = complexity > 40 and solidity < 0.45
+        is_micro_crack = area > 50 and aspect_ratio > 4.0
 
         if is_straight_crack or is_fine_crack or is_micro_crack:
             final_cracks[labels == i] = 255

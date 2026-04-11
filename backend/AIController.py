@@ -2,7 +2,7 @@ import os
 #--Google Cloud--
 from google.cloud import storage
 
-YOLO_MODEL_PATH = "/tmp/best.pt"
+YOLO_MODEL_PATH = "/tmp/final_yolo_best_model.pt"
 TENSOR_MODEL_PATH ="/tmp/final_TF_model.h5"
 
 API_KEY = os.environ.get("API_SECRET")
@@ -13,7 +13,7 @@ def download_model():
 
     if not os.path.exists(YOLO_MODEL_PATH):
         print("Downloading YOLO model...")
-        blob = bucket.blob("best.pt")
+        blob = bucket.blob("final_yolo_best_model.pt")
         blob.download_to_filename(YOLO_MODEL_PATH)
 
     if not os.path.exists(TENSOR_MODEL_PATH):

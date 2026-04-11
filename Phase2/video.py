@@ -5,19 +5,19 @@ import numpy as np
 
 # 1. SETUP (Global)
 #current best:V2 i guess
-model = YOLO('../backend/yolo_corrosion/yolov8_corrosionV2/weights/best.pt')
+model = YOLO('../Phase2/yolo_corrosion/yolov8_corrosion_542026/weights/best.pt')
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 # Paths
-video_path = "../Outcomes/Input/videotest.mp4"
-output_path = "../Outcomes/Predictions/processed_video.mp4"
+video_path = "../Outcomes/Input/qc.jpg"
+output_path = "../Outcomes/Predictions/processed_video_qc_bestpt.mp4"
 
 cap = cv2.VideoCapture(video_path)
 
 # --- VIDEO WRITER SETUP ---
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec
 fps = int(cap.get(cv2.CAP_PROP_FPS))
-fps = int(fps * 100)
+fps = int(fps * 60)
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
@@ -28,10 +28,12 @@ last_results = None
 # Move kernel outside loop to save CPU cycles
 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25, 25))
 
+def is_too_blurry(img_gray, threshold=80):
+    return cv2.Laplacian(img_gray, cv2.CV_64F).var() < threshold
 
-def process_roi(roi_mask, img_rgb, current_boxed_img, current_face_mask, w_img):
+def process_roi(roi_mask, img_rgb, current_boxed_img, current_face_mask, w_img,conf_score=0.0):
     final_mask = cv2.bitwise_and(roi_mask, cv2.bitwise_not(current_face_mask))
-    rust_mask, cracks_mask = detect_rust_and_cracks(img_rgb, final_mask)
+    rust_mask, cracks_mask = detect_rust_and_cracks(img_rgb, final_mask, conf_score=conf_score)
 
     if np.any(rust_mask):
         contours, _ = cv2.findContours(rust_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -67,33 +69,63 @@ while cap.isOpened():
     gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, 1.1, 5)
     face_mask = np.zeros((h_img, w_img), dtype=np.uint8)
+
+    if is_too_blurry(gray):
+        out.write(image_bgr)
+        frame_idx += 1
+        continue
+
     for (x, y, w, h) in faces:
         cv2.rectangle(face_mask, (x, y), (x + w, y + h), 255, -1)
     face_mask_dilated = cv2.dilate(face_mask, kernel, iterations=3)
 
     # --- YOLO PREDICTION (Every 3rd Frame) ---
     if frame_idx % 2 == 0:
-        last_results = model.predict(image_bgr, conf=0.4, imgsz=640, device="cpu", verbose=False)
+        #need conf to be like 0.5 or more
+        last_results = model.predict(image_bgr, conf=0.25, imgsz=768, device="cpu",iou=0.4, verbose=False)
+
+        debug_results = model.predict(image_bgr, conf=0.15, device=0, verbose=False)
+        annotated_frame = debug_results[0].plot()
+        cv2.imshow("DEBUG: WHAT YOLO SEES", annotated_frame)
 
     found_valid_box = False
     if last_results is not None and len(last_results[0].boxes) > 0:
         r = last_results[0]
         for i, box in enumerate(r.boxes.xyxy.cpu().numpy()):
             x1, y1, x2, y2 = map(int, box)
-            if (x2 - x1) > (w_img * 0.8) and (y2 - y1) < (h_img * 0.1):
+            conf_score = float(r.boxes.conf[i].cpu().numpy())
+            if (x2 - x1) > (w_img * 0.6) and (y2 - y1) < (h_img * 0.1):
                 continue
+
+            # roi = image_rgb[y1:y2, x1:x2]
+            # if roi.size == 0:
+            #     continue
+            # roi_hsv = cv2.cvtColor(roi, cv2.COLOR_RGB2HSV)
+            # rust_px = cv2.bitwise_or(
+            #     cv2.bitwise_or(
+            #         cv2.inRange(roi_hsv, np.array([0, 75, 70]), np.array([19, 190, 120])),
+            #         cv2.inRange(roi_hsv, np.array([170, 70, 70]), np.array([180, 200, 120]))
+            #     ),
+            #     cv2.bitwise_or(
+            #         cv2.inRange(roi_hsv, np.array([0, 40, 50]), np.array([25, 100, 80])),
+            #         cv2.inRange(roi_hsv, np.array([5, 55, 40]), np.array([30, 255, 230]))
+            #     )
+            # )
+            # rust_ratio = np.count_nonzero(rust_px) / (roi.shape[0] * roi.shape[1] + 1e-5)
+            # if rust_ratio < 0.05:
+            #     continue
 
             found_valid_box = True
             box_mask = np.zeros((h_img, w_img), dtype=np.uint8)
             box_mask[y1:y2, x1:x2] = 255
-            process_roi(box_mask, image_rgb, boxed_image, face_mask_dilated, w_img)
+            process_roi(box_mask, image_rgb, boxed_image, face_mask_dilated, w_img,conf_score)
 
-    # --- FALLBACK ---
-    if not found_valid_box:
-        global_mask = np.zeros((h_img, w_img), dtype=np.uint8)
-        mx, my = int(w_img * 0.2), int(h_img * 0.2)
-        global_mask[my:h_img - my, mx:w_img - mx] = 255
-        process_roi(global_mask, image_rgb, boxed_image, face_mask_dilated, w_img)
+    # --- FALLBACK --- no more man
+    # if not found_valid_box:
+    #     global_mask = np.zeros((h_img, w_img), dtype=np.uint8)
+    #     mx, my = int(w_img * 0.2), int(h_img * 0.2)
+    #     global_mask[my:h_img - my, mx:w_img - mx] = 255
+    #     process_roi(global_mask, image_rgb, boxed_image, face_mask_dilated, w_img)
 
     # --- SAVE AND DISPLAY ---
     out.write(boxed_image)  # Save full resolution frame

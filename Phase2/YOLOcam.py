@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from Phase1.PostProcess import detect_rust_and_cracks
 
-model = YOLO("../backend/yolo_corrosion/yolov8_corrosionV2/weights/best.pt")
+model = YOLO("../Phase2/yolo_corrosion/yolov8_corrosion_542026/weights/best.pt")
 model.model.to("cpu")
 
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -16,9 +16,9 @@ frame_idx = 0
 last_results = None
 
 #helper--------------------------------------------------
-def process_roi(roi_mask, img_rgb, current_boxed_img, current_face_mask, w_img,h_img):
+def process_roi(roi_mask, img_rgb, current_boxed_img, current_face_mask, w_img,h_img,conf_score=0.0):
     final_mask = cv2.bitwise_and(roi_mask, cv2.bitwise_not(current_face_mask))
-    rust_mask, cracks_mask = detect_rust_and_cracks(img_rgb, final_mask)
+    rust_mask, cracks_mask = detect_rust_and_cracks(img_rgb, final_mask, conf_score=conf_score)
 
     if np.any(rust_mask):
         contours, _ = cv2.findContours(rust_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
