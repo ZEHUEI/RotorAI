@@ -4,23 +4,28 @@ from Phase1.PostProcess import detect_rust_and_cracks
 import numpy as np
 
 # 1. SETUP (Global)
+# only 60fps HD iphone
 #current best:V2 i guess
-model = YOLO('../Phase2/yolo_corrosion/yolov8_corrosion_542026/weights/best.pt')
+model = YOLO('Phase2/yolo_corrosion/yolov8_corrosion_542026/weights/best.pt')
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 # Paths
-video_path = "../Outcomes/Input/qc.jpg"
-output_path = "../Outcomes/Predictions/processed_video_qc_bestpt.mp4"
+video_path = "Outcomes/Input/IMG_1150.mp4"
+output_path = "Outcomes/Predictions/imgtry.mp4"
+
 
 cap = cv2.VideoCapture(video_path)
 
 # --- VIDEO WRITER SETUP ---
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec
 fps = int(cap.get(cv2.CAP_PROP_FPS))
-fps = int(fps * 60)
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+predict_w, predict_h = 1280, 720
+print("FPS:", cap.get(cv2.CAP_PROP_FPS))
+print("Opened:", cap.isOpened())
+print("Resolution:", width, "x", height)
 
 # Persistent variables
 frame_idx = 0
@@ -82,55 +87,39 @@ while cap.isOpened():
     # --- YOLO PREDICTION (Every 3rd Frame) ---
     if frame_idx % 2 == 0:
         #need conf to be like 0.5 or more
-        last_results = model.predict(image_bgr, conf=0.25, imgsz=768, device="cpu",iou=0.4, verbose=False)
+        image_bgr_small = cv2.resize(image_bgr, (predict_w, predict_h))
+        last_results = model.predict(image_bgr_small, conf=0.5, imgsz=768, device=0,iou=0.4, verbose=False)
 
-        debug_results = model.predict(image_bgr, conf=0.15, device=0, verbose=False)
-        annotated_frame = debug_results[0].plot()
-        cv2.imshow("DEBUG: WHAT YOLO SEES", annotated_frame)
+        # debug_results = model.predict(image_bgr, conf=0.15, device=0, verbose=False)
+        # annotated_frame = debug_results[0].plot()
+        # cv2.imshow("DEBUG: WHAT YOLO SEES", annotated_frame)
 
     found_valid_box = False
     if last_results is not None and len(last_results[0].boxes) > 0:
         r = last_results[0]
         for i, box in enumerate(r.boxes.xyxy.cpu().numpy()):
             x1, y1, x2, y2 = map(int, box)
+
+            scale_x = w_img / predict_w
+            scale_y = h_img / predict_h
+            x1 = int(x1 * scale_x)
+            y1 = int(y1 * scale_y)
+            x2 = int(x2 * scale_x)
+            y2 = int(y2 * scale_y)
+
             conf_score = float(r.boxes.conf[i].cpu().numpy())
             if (x2 - x1) > (w_img * 0.6) and (y2 - y1) < (h_img * 0.1):
                 continue
-
-            # roi = image_rgb[y1:y2, x1:x2]
-            # if roi.size == 0:
-            #     continue
-            # roi_hsv = cv2.cvtColor(roi, cv2.COLOR_RGB2HSV)
-            # rust_px = cv2.bitwise_or(
-            #     cv2.bitwise_or(
-            #         cv2.inRange(roi_hsv, np.array([0, 75, 70]), np.array([19, 190, 120])),
-            #         cv2.inRange(roi_hsv, np.array([170, 70, 70]), np.array([180, 200, 120]))
-            #     ),
-            #     cv2.bitwise_or(
-            #         cv2.inRange(roi_hsv, np.array([0, 40, 50]), np.array([25, 100, 80])),
-            #         cv2.inRange(roi_hsv, np.array([5, 55, 40]), np.array([30, 255, 230]))
-            #     )
-            # )
-            # rust_ratio = np.count_nonzero(rust_px) / (roi.shape[0] * roi.shape[1] + 1e-5)
-            # if rust_ratio < 0.05:
-            #     continue
 
             found_valid_box = True
             box_mask = np.zeros((h_img, w_img), dtype=np.uint8)
             box_mask[y1:y2, x1:x2] = 255
             process_roi(box_mask, image_rgb, boxed_image, face_mask_dilated, w_img,conf_score)
 
-    # --- FALLBACK --- no more man
-    # if not found_valid_box:
-    #     global_mask = np.zeros((h_img, w_img), dtype=np.uint8)
-    #     mx, my = int(w_img * 0.2), int(h_img * 0.2)
-    #     global_mask[my:h_img - my, mx:w_img - mx] = 255
-    #     process_roi(global_mask, image_rgb, boxed_image, face_mask_dilated, w_img)
-
     # --- SAVE AND DISPLAY ---
     out.write(boxed_image)  # Save full resolution frame
 
-    cv2.imshow("Rotor AI - Processing Video", cv2.resize(boxed_image, (w_img , h_img)))
+    cv2.imshow("Rotor AI - Processing Video", cv2.resize(boxed_image, (1280 , 720)))
     frame_idx += 1
 
     if cv2.waitKey(1) & 0xFF == ord('q'):

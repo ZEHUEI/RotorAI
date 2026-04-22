@@ -13,11 +13,17 @@ def detect_rust_and_cracks(image,corrosion_mask, confidence_map=None,conf_score=
     mask3 = cv2.inRange(hsv, np.array([10, 55, 100]), np.array([22, 120, 200]))
     mask4 = cv2.inRange(hsv, np.array([5, 55, 40]), np.array([30, 255, 230]))
 
+    red_arm_low = cv2.inRange(hsv, np.array([0, 120, 100]), np.array([8, 255, 255]))
+    red_arm_high = cv2.inRange(hsv, np.array([172, 120, 100]), np.array([180, 255, 255]))
+    mask5 = cv2.bitwise_or(red_arm_low, red_arm_high)  # pixels to EXCLUDE
+
     # Combined rust color mask
     rust_color_mask = cv2.bitwise_or(
         cv2.bitwise_or(cv2.bitwise_or(mask0, mask1), cv2.bitwise_or(mask2, mask3)),
         mask4
     )
+
+    rust_color_mask = cv2.bitwise_and(rust_color_mask, cv2.bitwise_not(mask5))
 
     # Only keep AI mask pixels that are also rust-colored
     corrosion_mask = corrosion_mask.copy()

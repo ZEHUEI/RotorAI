@@ -49,12 +49,12 @@ from Phase1.PostProcess import detect_rust_and_cracks
 import numpy as np
 
 # Load YOLO model
-model = YOLO('yolo_corrosion/yolov8_corrosionV2/weights/best.pt')
+model = YOLO('yolo_corrosion/yolov8_corrosion_542026/weights/best.pt')
 
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 # Load image
-image_bgr = cv2.imread("Outcomes/Input/qc.jpg")
+image_bgr = cv2.imread("../Outcomes/Input/img_7.png")
 image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 boxed_image = image_bgr.copy()
 h_img, w_img = image_rgb.shape[:2]  # Get image dimensions
@@ -103,7 +103,7 @@ def process_roi(roi_mask, img_rgb, debug_name=""):
 
 
 # 3. YOLO PREDICTION
-results = model.predict("Outcomes/Input/qc.jpg", conf=0.4, imgsz=1024)  # Increased conf slightly
+results = model.predict("../Outcomes/Input/img_7.png", conf=0.4, imgsz=1024)  # Increased conf slightly
 r = results[0]
 found_valid_box = False
 
@@ -136,5 +136,5 @@ if not found_valid_box:
 
     process_roi(global_mask, image_rgb, "Global Fallback")
 
-cv2.imwrite("Outcomes/Predictions/rust_cracks_boxes_fixed.png", boxed_image)
+cv2.imwrite("../Outcomes/Predictions/what.png", boxed_image)
 print("Saved fixed image.")
