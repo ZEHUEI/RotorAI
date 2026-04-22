@@ -29,7 +29,7 @@ base_model = Unet(
 outputs = Lambda(lambda t: tf.cast(t, tf.float32))(base_model.output)
 model = tf.keras.Model(inputs=base_model.input, outputs=outputs)
 
-WEIGHTS_FILE = "best_lastdance8.h5"
+WEIGHTS_FILE = "../backend/final_TF_model.h5"
 model.load_weights(WEIGHTS_FILE)
 print(f"Loaded weights from {WEIGHTS_FILE}")
 
@@ -38,7 +38,7 @@ face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_fronta
 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25, 25))
 
 # --- PATHS ---
-video_path = "../Outcomes/Input/videotest.mp4"
+video_path = "../Outcomes/Input/IMG_1150.mp4"
 output_path = "../Outcomes/Predictions/processed_video.mp4"
 
 cap = cv2.VideoCapture(video_path)

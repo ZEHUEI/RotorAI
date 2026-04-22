@@ -1,28 +1,28 @@
+"""
+This is final
+"""
 import cv2
 from ultralytics import YOLO
 from Phase1.PostProcess import detect_rust_and_cracks
 import numpy as np
 
 # 1. SETUP (Global)
-# only 60fps HD iphone
-#current best:V2 i guess
 model = YOLO('Phase2/yolo_corrosion/yolov8_corrosion_542026/weights/best.pt')
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 # Paths
-video_path = "Outcomes/Input/IMG_1150.mp4"
-output_path = "Outcomes/Predictions/imgtry.mp4"
-
+video_path = "Outcomes/Input/IMG_1291.mp4"
+output_path = "Outcomes/Predictions/final.mp4"
 
 cap = cv2.VideoCapture(video_path)
 
 # --- VIDEO WRITER SETUP ---
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 fps = int(cap.get(cv2.CAP_PROP_FPS))
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-predict_w, predict_h = 1280, 720
+
 print("FPS:", cap.get(cv2.CAP_PROP_FPS))
 print("Opened:", cap.isOpened())
 print("Resolution:", width, "x", height)
@@ -30,15 +30,14 @@ print("Resolution:", width, "x", height)
 # Persistent variables
 frame_idx = 0
 last_results = None
-# Move kernel outside loop to save CPU cycles
 kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25, 25))
 
-def is_too_blurry(img_gray, threshold=80):
-    return cv2.Laplacian(img_gray, cv2.CV_64F).var() < threshold
+# def is_too_blurry(img_gray, threshold=80):
+#     return cv2.Laplacian(img_gray, cv2.CV_64F).var() < threshold
 
-def process_roi(roi_mask, img_rgb, current_boxed_img, current_face_mask, w_img,conf_score=0.0):
+def process_roi(roi_mask, img_rgb, current_boxed_img, current_face_mask, w_img):
     final_mask = cv2.bitwise_and(roi_mask, cv2.bitwise_not(current_face_mask))
-    rust_mask, cracks_mask = detect_rust_and_cracks(img_rgb, final_mask, conf_score=conf_score)
+    rust_mask, cracks_mask = detect_rust_and_cracks(img_rgb, final_mask)
 
     if np.any(rust_mask):
         contours, _ = cv2.findContours(rust_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -75,24 +74,23 @@ while cap.isOpened():
     faces = face_cascade.detectMultiScale(gray, 1.1, 5)
     face_mask = np.zeros((h_img, w_img), dtype=np.uint8)
 
-    if is_too_blurry(gray):
-        out.write(image_bgr)
-        frame_idx += 1
-        continue
+    # if is_too_blurry(gray):
+    #     out.write(image_bgr)
+    #     frame_idx += 1
+    #     continue
 
     for (x, y, w, h) in faces:
         cv2.rectangle(face_mask, (x, y), (x + w, y + h), 255, -1)
     face_mask_dilated = cv2.dilate(face_mask, kernel, iterations=3)
 
-    # --- YOLO PREDICTION (Every 3rd Frame) ---
-    if frame_idx % 2 == 0:
-        #need conf to be like 0.5 or more
-        image_bgr_small = cv2.resize(image_bgr, (predict_w, predict_h))
-        last_results = model.predict(image_bgr_small, conf=0.5, imgsz=768, device=0,iou=0.4, verbose=False)
+    # --- YOLO PREDICTION (Every 2nd frame) ---
+    if frame_idx % 5 == 0:
+        # Predict on full resolution — no resize, no scaling needed
+        last_results = model.predict(image_bgr, conf=0.4, imgsz=640, device="cpu", iou=0.4, verbose=False)
 
-        # debug_results = model.predict(image_bgr, conf=0.15, device=0, verbose=False)
+        # debug_results = model.predict(image_bgr, conf=0.15, imgsz=640, device="cpu", verbose=False)
         # annotated_frame = debug_results[0].plot()
-        # cv2.imshow("DEBUG: WHAT YOLO SEES", annotated_frame)
+        # cv2.imshow("DEBUG: WHAT YOLO SEES", cv2.resize(annotated_frame, (760, 360)))
 
     found_valid_box = False
     if last_results is not None and len(last_results[0].boxes) > 0:
@@ -100,32 +98,27 @@ while cap.isOpened():
         for i, box in enumerate(r.boxes.xyxy.cpu().numpy()):
             x1, y1, x2, y2 = map(int, box)
 
-            scale_x = w_img / predict_w
-            scale_y = h_img / predict_h
-            x1 = int(x1 * scale_x)
-            y1 = int(y1 * scale_y)
-            x2 = int(x2 * scale_x)
-            y2 = int(y2 * scale_y)
-
-            conf_score = float(r.boxes.conf[i].cpu().numpy())
-            if (x2 - x1) > (w_img * 0.6) and (y2 - y1) < (h_img * 0.1):
+            # No scaling — coords are already in full-res space
+            box_w = x2 - x1
+            box_h = y2 - y1
+            if box_w > (w_img * 0.8) and box_h < (h_img * 0.1):
+                print(f"Skipping Box {i} (Likely Rope)")
                 continue
 
             found_valid_box = True
             box_mask = np.zeros((h_img, w_img), dtype=np.uint8)
             box_mask[y1:y2, x1:x2] = 255
-            process_roi(box_mask, image_rgb, boxed_image, face_mask_dilated, w_img,conf_score)
+            process_roi(box_mask, image_rgb, boxed_image, face_mask_dilated, w_img)
 
     # --- SAVE AND DISPLAY ---
-    out.write(boxed_image)  # Save full resolution frame
-
-    cv2.imshow("Rotor AI - Processing Video", cv2.resize(boxed_image, (1280 , 720)))
+    out.write(boxed_image)
+    cv2.imshow("Rotor AI - Processing Video", cv2.resize(boxed_image, (w_img, h_img)))
     frame_idx += 1
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
 cap.release()
-out.release()  # Close the file writer
+out.release()
 cv2.destroyAllWindows()
 print(f"Video processing finished. Saved to: {output_path}")

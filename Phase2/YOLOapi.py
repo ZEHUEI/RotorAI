@@ -73,11 +73,4 @@ def detect_frame(frame,model):
             box_mask[y1:y2, x1:x2] = 255
             detections += process_roi(box_mask, img_rgb, boxed_image, face_mask_dilated, w_img)
 
-    # Fallback to center
-    if not found_valid_box:
-        global_mask = np.zeros((h_img, w_img), dtype=np.uint8)
-        mx, my = int(w_img * 0.2), int(h_img * 0.2)
-        global_mask[my:h_img - my, mx:w_img - mx] = 255
-        detections += process_roi(global_mask, img_rgb, boxed_image, face_mask_dilated, w_img)
-
     return detections

@@ -1,6 +1,8 @@
 Data/
 Archive/
 Ignore/
+Phase3/Input
+Phase3/Output
 backend/yolo_corrosion
 *.h5
 *.pt

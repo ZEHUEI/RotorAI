@@ -1,48 +1,6 @@
-# import cv2
-# import numpy as np
-# from ultralytics import YOLO
-# from Phase1.PostProcess import detect_rust_and_cracks
-#
-# model = YOLO('yolo_corrosion/yolov8_corrosionV4/weights/best.pt')
-#
-# image_bgr = cv2.imread("Outcomes/Input/motor2.jpg")
-# H, W = image_bgr.shape[:2]
-#
-# image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-#
-# # YOLO prediction
-# results = model.predict("Outcomes/Input/motor2.jpg", conf=0.00001, imgsz=1024, verbose=True)
-# r = results[0]
-#
-# if r.masks is None:
-#     print("No corrosion detected — skipping post-processing")
-# else:
-#     # Combine all detected masks into a single mask
-#     masks = r.masks.data.cpu().numpy()
-#     combined_mask = np.zeros_like(masks[0], dtype=np.uint8)
-#     for m in masks:
-#         combined_mask = np.maximum(combined_mask, (m > 0.5).astype(np.uint8) * 255)
-#
-#     combined_mask = cv2.resize(combined_mask, (W, H), interpolation=cv2.INTER_NEAREST)
-#
-#     rust_mask, cracks_mask = detect_rust_and_cracks(image_rgb, combined_mask)
-#
-#     #RUST
-#     rust_image = image_bgr.copy()
-#     green = (0, 255, 0)  # Rust color
-#     rust_image[rust_mask > 0] = green
-#
-#     #cracks
-#     cracks_image = image_bgr.copy()
-#     cyan = (255, 255, 0)  # Cracks color
-#     cracks_image[cracks_mask > 0] = cyan
-#
-#     # Save results
-#     cv2.imwrite("Outcomes/Predictions/rust.png", rust_image)
-#     cv2.imwrite("Outcomes/Predictions/cracks.png", cracks_image)
-#
-#     print("Saved rust & crack masks in original colors")
-
+"""
+This is final
+"""
 import cv2
 from ultralytics import YOLO
 from Phase1.PostProcess import detect_rust_and_cracks
@@ -54,7 +12,7 @@ model = YOLO('yolo_corrosion/yolov8_corrosion_542026/weights/best.pt')
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 # Load image
-image_bgr = cv2.imread("../Outcomes/Input/img_7.png")
+image_bgr = cv2.imread("../Phase3/Output/IMG_1294.JPG")
 image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 boxed_image = image_bgr.copy()
 h_img, w_img = image_rgb.shape[:2]  # Get image dimensions
@@ -103,7 +61,7 @@ def process_roi(roi_mask, img_rgb, debug_name=""):
 
 
 # 3. YOLO PREDICTION
-results = model.predict("../Outcomes/Input/img_7.png", conf=0.4, imgsz=1024)  # Increased conf slightly
+results = model.predict(image_bgr, conf=0.4, imgsz=1024,device="cpu")  # Increased conf slightly
 r = results[0]
 found_valid_box = False
 
@@ -124,17 +82,5 @@ if r.boxes is not None and len(r.boxes) > 0:
         box_mask[y1:y2, x1:x2] = 255
         process_roi(box_mask, image_rgb, f"Box {i}")
 
-# 4. FALLBACK: IF YOLO FAILED, SCAN CENTER OF IMAGE
-if not found_valid_box:
-    print("No valid YOLO boxes found. Running GLOBAL SCAN on center area...")
-
-    # Create a mask for the center 60% of the screen (ignore edges where background is)
-    global_mask = np.zeros(image_rgb.shape[:2], dtype=np.uint8)
-    margin_x = int(w_img * 0.2)
-    margin_y = int(h_img * 0.2)
-    global_mask[margin_y:h_img - margin_y, margin_x:w_img - margin_x] = 255
-
-    process_roi(global_mask, image_rgb, "Global Fallback")
-
-cv2.imwrite("../Outcomes/Predictions/what.png", boxed_image)
+cv2.imwrite("../Outcomes/Predictions/testingYOLOframes.png", boxed_image)
 print("Saved fixed image.")

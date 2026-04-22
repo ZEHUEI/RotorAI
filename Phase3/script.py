@@ -1,27 +1,19 @@
 import cv2
 import os
 
-def extract_frames(video_path, output_folder, fps=3):
-    os.makedirs(output_folder, exist_ok=True)
+#resive
+input_folder = "../Phase3/Input"
+output_folder = "../Phase3/Output"
 
-    cap = cv2.VideoCapture(video_path)
-    video_fps = cap.get(cv2.CAP_PROP_FPS)
+os.makedirs(output_folder, exist_ok=True)
 
-    frame_interval = int(video_fps / fps)
+images = [f for f in os.listdir(input_folder) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
+total = len(images)
 
-    frame_count = 0
-    saved_count = 0
+for i, filename in enumerate(images):
+    img = cv2.imread(os.path.join(input_folder, filename))
+    resized = cv2.resize(img, (1280, 720))
+    cv2.imwrite(os.path.join(output_folder, filename), resized)
+    print(f"{i+1}/{total} — {filename}")
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        if frame_count % frame_interval == 0:
-            filename = os.path.join(output_folder, f"frame_{saved_count:05d}.jpg")
-            cv2.imwrite(filename, frame)
-            saved_count += 1
-
-        frame_count += 1
-
-    cap.release()
+print(f"Done! Saved to {output_folder}")
