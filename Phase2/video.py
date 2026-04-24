@@ -7,12 +7,12 @@ from Phase1.PostProcess import detect_rust_and_cracks
 import numpy as np
 
 # 1. SETUP (Global)
-model = YOLO('Phase2/yolo_corrosion/yolov8_corrosion_542026/weights/best.pt')
+model = YOLO('../Phase2/yolo_corrosion/yolov8_corrosion_542026/weights/best.pt')
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 # Paths
-video_path = "Outcomes/Input/IMG_1291.mp4"
-output_path = "Outcomes/Predictions/final.mp4"
+video_path = "../Outcomes/Input/IMG_1291.mp4"
+output_path = "../Outcomes/Predictions/testme.mp4"
 
 cap = cv2.VideoCapture(video_path)
 
