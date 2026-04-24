@@ -1,4 +1,5 @@
 export async function POST(req) {
+  const body = await req.json();
   const formData = await req.formData();
 
   const res = await fetch(process.env.NEXT_PUBLIC_BACKEND_URL + '/detect', {
