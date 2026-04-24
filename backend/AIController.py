@@ -64,99 +64,99 @@ app = Flask(__name__)
 CORS(app, origins=["https://rotor-ai.vercel.app"])
 
 
-#cache
-from celery import Celery
-import subprocess
-import glob
-
-celery = Celery(app.name, broker='redis://localhost:6379/0', backend='redis://localhost:6379/0')
-
-
-@celery.task(bind=True)
-def run_3dgs_full_pipeline(self, job_id):
-    client = storage.Client()
-    bucket = client.bucket("rotor-ai-jobs")
-
-    # Create working dirs
-    base_path = f"/tmp/{job_id}"
-    frames_dir = f"{base_path}/images"
-    masks_dir = f"{base_path}/masks"
-    os.makedirs(frames_dir, exist_ok=True)
-    os.makedirs(masks_dir, exist_ok=True)
-
-    # 1. Download video
-    local_video = f"{base_path}/input.mp4"
-    blob = bucket.blob(f"jobs/{job_id}/input.mp4")
-    blob.download_to_filename(local_video)
-
-    # 2. Extract frames
-    subprocess.run(["ffmpeg", "-i", local_video, "-vf", "fps=3", f"{frames_dir}/frame_%05d.jpg"])
-
-    # 3. Run AI Inference on ALL frames
-    # We find all extracted JPEGs and process them one by one
-    image_files = sorted(glob.glob(f"{frames_dir}/*.jpg"))
-
-    for img_path in image_files:
-        filename = os.path.basename(img_path)
-        mask_filename = filename.replace(".jpg", ".png")  # Mask must be a PNG
-
-        # Load and prep image for your model
-        image = Image.open(img_path).convert("RGB")
-        original_img = np.array(image)
-        resized_img = cv2.resize(original_img, TARGET_SIZE)
-        preprocessed_img = preprocess_input(resized_img)
-        img_batch = np.expand_dims(preprocessed_img, axis=0)
-
-        # Run Prediction
-        pred_mask = model.predict(img_batch, verbose=0)[0, :, :, 0]
-        corrosion_mask = (pred_mask > THRESHOLD).astype(np.uint8)
-        corrosion_mask_resized = cv2.resize(
-            corrosion_mask,
-            (original_img.shape[1], original_img.shape[0]),
-            interpolation=cv2.INTER_NEAREST
-        )
-
-        rust_mask, crack_mask = detect_rust_and_cracks(original_img, corrosion_mask_resized)
-
-        # Combine into a single mask for Nerfstudio (White = Feature, Black = Background)
-        combined_mask = np.zeros(original_img.shape[:2], dtype=np.uint8)
-        combined_mask[rust_mask > 0] = 255
-        combined_mask[crack_mask > 0] = 255
-
-        # Save the mask
-        cv2.imwrite(f"{masks_dir}/{mask_filename}", combined_mask)
-
-    # 4. Nerfstudio: Process Data (Notice the --masks-path flag!)
-    subprocess.run([
-        "ns-process-data", "images",
-        "--data", frames_dir,
-        "--masks-path", masks_dir,
-        "--output-dir", base_path
-    ])
-
-    # 5. Nerfstudio: Train (This will take a long time on your 5070)
-    subprocess.run([
-        "ns-train", "splatfacto",
-        "--data", base_path,
-        "--viewer.quit-on-train-completion", "True"
-    ])
-
-    # 6. Export PLY
-    export_dir = f"{base_path}/exports"
-    subprocess.run([
-        "ns-export", "gaussian-splat",
-        "--load-config", f"{base_path}/outputs/splatfacto/config.yml",
-        "--output-dir", export_dir
-    ])
-
-    # Upload PLY back to Google Cloud
-    ply_file = f"{export_dir}/splat.ply"
-    if os.path.exists(ply_file):
-        out_blob = bucket.blob(f"jobs/{job_id}/model.ply")
-        out_blob.upload_from_filename(ply_file)
-        return {"status": "done", "ply_url": f"https://storage.googleapis.com/rotor-ai-jobs/jobs/{job_id}/model.ply"}
-
-    return {"status": "error", "message": "PLY not generated"}
+# #cache
+# from celery import Celery
+# import subprocess
+# import glob
+#
+# celery = Celery(app.name, broker='redis://localhost:6379/0', backend='redis://localhost:6379/0')
+#
+#
+# @celery.task(bind=True)
+# def run_3dgs_full_pipeline(self, job_id):
+#     client = storage.Client()
+#     bucket = client.bucket("rotor-ai-jobs")
+#
+#     # Create working dirs
+#     base_path = f"/tmp/{job_id}"
+#     frames_dir = f"{base_path}/images"
+#     masks_dir = f"{base_path}/masks"
+#     os.makedirs(frames_dir, exist_ok=True)
+#     os.makedirs(masks_dir, exist_ok=True)
+#
+#     # 1. Download video
+#     local_video = f"{base_path}/input.mp4"
+#     blob = bucket.blob(f"jobs/{job_id}/input.mp4")
+#     blob.download_to_filename(local_video)
+#
+#     # 2. Extract frames
+#     subprocess.run(["ffmpeg", "-i", local_video, "-vf", "fps=3", f"{frames_dir}/frame_%05d.jpg"])
+#
+#     # 3. Run AI Inference on ALL frames
+#     # We find all extracted JPEGs and process them one by one
+#     image_files = sorted(glob.glob(f"{frames_dir}/*.jpg"))
+#
+#     for img_path in image_files:
+#         filename = os.path.basename(img_path)
+#         mask_filename = filename.replace(".jpg", ".png")  # Mask must be a PNG
+#
+#         # Load and prep image for your model
+#         image = Image.open(img_path).convert("RGB")
+#         original_img = np.array(image)
+#         resized_img = cv2.resize(original_img, TARGET_SIZE)
+#         preprocessed_img = preprocess_input(resized_img)
+#         img_batch = np.expand_dims(preprocessed_img, axis=0)
+#
+#         # Run Prediction
+#         pred_mask = model.predict(img_batch, verbose=0)[0, :, :, 0]
+#         corrosion_mask = (pred_mask > THRESHOLD).astype(np.uint8)
+#         corrosion_mask_resized = cv2.resize(
+#             corrosion_mask,
+#             (original_img.shape[1], original_img.shape[0]),
+#             interpolation=cv2.INTER_NEAREST
+#         )
+#
+#         rust_mask, crack_mask = detect_rust_and_cracks(original_img, corrosion_mask_resized)
+#
+#         # Combine into a single mask for Nerfstudio (White = Feature, Black = Background)
+#         combined_mask = np.zeros(original_img.shape[:2], dtype=np.uint8)
+#         combined_mask[rust_mask > 0] = 255
+#         combined_mask[crack_mask > 0] = 255
+#
+#         # Save the mask
+#         cv2.imwrite(f"{masks_dir}/{mask_filename}", combined_mask)
+#
+#     # 4. Nerfstudio: Process Data (Notice the --masks-path flag!)
+#     subprocess.run([
+#         "ns-process-data", "images",
+#         "--data", frames_dir,
+#         "--masks-path", masks_dir,
+#         "--output-dir", base_path
+#     ])
+#
+#     # 5. Nerfstudio: Train (This will take a long time on your 5070)
+#     subprocess.run([
+#         "ns-train", "splatfacto",
+#         "--data", base_path,
+#         "--viewer.quit-on-train-completion", "True"
+#     ])
+#
+#     # 6. Export PLY
+#     export_dir = f"{base_path}/exports"
+#     subprocess.run([
+#         "ns-export", "gaussian-splat",
+#         "--load-config", f"{base_path}/outputs/splatfacto/config.yml",
+#         "--output-dir", export_dir
+#     ])
+#
+#     # Upload PLY back to Google Cloud
+#     ply_file = f"{export_dir}/splat.ply"
+#     if os.path.exists(ply_file):
+#         out_blob = bucket.blob(f"jobs/{job_id}/model.ply")
+#         out_blob.upload_from_filename(ply_file)
+#         return {"status": "done", "ply_url": f"https://storage.googleapis.com/rotor-ai-jobs/jobs/{job_id}/model.ply"}
+#
+#     return {"status": "error", "message": "PLY not generated"}
 
 def image_to_base64(img_np):
     img_pil = Image.fromarray(img_np)
