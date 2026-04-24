@@ -96,8 +96,8 @@ def predict_image(model, image_path, target_size=TARGET_SIZE, threshold=0.65):
 
 # --- Test Execution Block-----------------------------------------------------------
 # #"../Outcomes/Input/ahahahhaa.jpg" "../Outcomes/Input/grass.jpg" "../Outcomes/Input/motor2.jpg" //1 2 3 4 "../Outcomes/Input/girl.jpg"
-TEST321 = "../Outcomes/Input/img.png" #not that good
-TEST654 = "../Outcomes/Input/img_5.png" #good
+TEST321 = "../Outcomes/Input/123.jpg" #not that good
+TEST654 = "../Outcomes/Input/img_4.png" #good
 TEST = "../Outcomes/Input/IMG_1341.jpg" #good
 # TEST321 = "../Outcomes/Input/motor3.jpg" #good
 # TEST654 = "../Outcomes/Input/motor4.jpg" #ok

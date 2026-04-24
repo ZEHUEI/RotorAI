@@ -267,36 +267,36 @@ def detect():
 
     return jsonify(detections)
 
-#this is for 3DGS
-import uuid
-
-def create_job_id():
-    return f"job_{uuid.uuid4().hex[:8]}"
-
-@app.route("/process-video",methods=["POST"])
-def process_video():
-    if not check_api_key():
-        return jsonify({"error": "unauth"}),401
-    if "video" not in request.files:
-        return jsonify({"error":"no video provided"}),400
-
-    file = request.files["video"]
-    job_id = create_job_id()
-    local_path = f"/tmp/{job_id}.mp4"
-    file.save(local_path)
-
-    client = storage.Client()
-    bucket = client.bucket("rotor-ai-jobs")
-    blob = bucket.blob(f"jobs/{job_id}/input.mp4")
-    blob.upload_from_filename(local_path)
-
-    task = run_3dgs_full_pipeline.delay(job_id)
-
-    return jsonify({
-        "message": "video uploaded and processing started in bg",
-        "job_id": job_id,
-        "task_id":task.id
-    })
+# #this is for 3DGS
+# import uuid
+#
+# def create_job_id():
+#     return f"job_{uuid.uuid4().hex[:8]}"
+#
+# @app.route("/process-video",methods=["POST"])
+# def process_video():
+#     if not check_api_key():
+#         return jsonify({"error": "unauth"}),401
+#     if "video" not in request.files:
+#         return jsonify({"error":"no video provided"}),400
+#
+#     file = request.files["video"]
+#     job_id = create_job_id()
+#     local_path = f"/tmp/{job_id}.mp4"
+#     file.save(local_path)
+#
+#     client = storage.Client()
+#     bucket = client.bucket("rotor-ai-jobs")
+#     blob = bucket.blob(f"jobs/{job_id}/input.mp4")
+#     blob.upload_from_filename(local_path)
+#
+#     task = run_3dgs_full_pipeline.delay(job_id)
+#
+#     return jsonify({
+#         "message": "video uploaded and processing started in bg",
+#         "job_id": job_id,
+#         "task_id":task.id
+#     })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080, debug=True)
