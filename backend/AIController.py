@@ -175,7 +175,7 @@ def apply_clahe(img_np):
 
 TARGET_SIZE = (512, 512)
 BACKBONE = "resnet50"
-THRESHOLD = 0.1
+THRESHOLD = 0.65
 
 preprocess_input = sm.get_preprocessing(BACKBONE)
 
