@@ -249,23 +249,46 @@ def predict():
 
 #------YOLO API
 def decode_image(data_url):
-    header, encoded = data_url.split(",", 1)
-    img_bytes = base64.b64decode(encoded)
-    np_arr = np.frombuffer(img_bytes, np.uint8)
-    return cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    try:
+        if "," in data_url:
+            _, encoded = data_url.split(",", 1)
+        else:
+            encoded = data_url
+
+        img_bytes = base64.b64decode(encoded)
+        np_arr = np.frombuffer(img_bytes, np.uint8)
+        return cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+    except Exception as e:
+        print("DECODE ERROR:", e)
+        return None
 
 @app.route("/detect", methods=["POST"])
 def detect():
     if not check_api_key():
         return jsonify({"error": "unauthorized"}), 401
 
-    data = request.json
-    img = decode_image(data["image"])
-    print("Image shape:", img.shape)
-    detections = detect_frame(img,yolo_model)
-    print("Detections:", detections)
+    try:
+        data = request.get_json()
 
-    return jsonify(detections)
+        if not data or "image" not in data:
+            return jsonify({"error": "no image provided"}), 400
+
+        img = decode_image(data["image"])
+
+        if img is None:
+            return jsonify({"error": "invalid image decode"}), 400
+
+        print("Image shape:", img.shape)
+
+        detections = detect_frame(img, yolo_model)
+
+        print("Detections:", detections)
+
+        return jsonify(detections)
+
+    except Exception as e:
+        print("DETECT ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
 
 # #this is for 3DGS
 # import uuid
