@@ -54,7 +54,6 @@ def detect_frame(frame,model):
     results = model.predict(frame, conf=0.4, imgsz=640, device="cpu", verbose=False)[0]
 
     detections = []
-    found_valid_box = False
 
     if results.boxes is not None and len(results.boxes) > 0:
         for box in results.boxes.xyxy.cpu().numpy():
@@ -64,11 +63,6 @@ def detect_frame(frame,model):
             if box_w > (w_img * 0.8) and box_h < (h_img * 0.1):
                 continue
 
-            roi_face = face_mask_dilated[y1:y2, x1:x2]
-            if np.any(roi_face):
-                continue
-
-            found_valid_box = True
             box_mask = np.zeros((h_img, w_img), dtype=np.uint8)
             box_mask[y1:y2, x1:x2] = 255
             detections += process_roi(box_mask, img_rgb, boxed_image, face_mask_dilated, w_img)
