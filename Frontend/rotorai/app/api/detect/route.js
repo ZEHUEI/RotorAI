@@ -7,6 +7,7 @@ export async function POST(req) {
       'Content-Type': 'application/json',
       'x-api-key': process.env.API_SECRET, // hidden
     },
+    body: JSON.stringify(body),
   });
 
   const data = await res.json();
