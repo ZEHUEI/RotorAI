@@ -181,7 +181,7 @@ preprocess_input = sm.get_preprocessing(BACKBONE)
 
 base_model = Unet(
     backbone_name=BACKBONE,
-    encoder_weights='imagenet',
+    encoder_weights=None,
     classes=1,
     activation='sigmoid',
     input_shape=TARGET_SIZE + (3,)
