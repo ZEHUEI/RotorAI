@@ -203,34 +203,43 @@ def predict():
     if not check_api_key():
         return jsonify({"error": "unauthorized"}), 401
     if "image" not in request.files:
-        return jsonify({"error": "no images provided"}),400
+        return jsonify({"error": "no images provided"}), 400
 
     file = request.files["image"]
-
     image = Image.open(file).convert("RGB")
     original_img = np.array(image)
 
-    resized_img = cv2.resize(original_img, TARGET_SIZE)
-    preprocessed_img = preprocess_input(resized_img)
-    img_batch = np.expand_dims(preprocessed_img, axis=0)
+    # ✅ Aspect-ratio preserving resize + padding
+    h, w = original_img.shape[:2]
+    scale = min(TARGET_SIZE[0] / h, TARGET_SIZE[1] / w)
+    new_h = min(int(np.floor(h * scale)), TARGET_SIZE[0])
+    new_w = min(int(np.floor(w * scale)), TARGET_SIZE[1])
+    img_resized = cv2.resize(original_img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
 
-    pred_mask = model.predict(img_batch)[0, :, :, 0]
-    corrosion_mask = (pred_mask > THRESHOLD).astype(np.uint8)
+    pad_h = TARGET_SIZE[0] - new_h
+    pad_w = TARGET_SIZE[1] - new_w
+    pad_top = pad_h // 2
+    pad_left = pad_w // 2
+    img_padded = np.pad(img_resized, [[pad_top, pad_h - pad_top], [pad_left, pad_w - pad_left], [0, 0]])
 
-    corrosion_mask_resized = cv2.resize(
-        corrosion_mask,
-        (original_img.shape[1], original_img.shape[0]),
-        interpolation=cv2.INTER_NEAREST
-    )
+    # ✅ CLAHE + preprocess
+    img_clahe = apply_clahe(img_padded)
+    img_preprocessed = preprocess_input(img_clahe.astype(np.float32))
+    img_batch = np.expand_dims(img_preprocessed, axis=0)
 
-    rust_mask, crack_mask = detect_rust_and_cracks(
-        original_img,
-        corrosion_mask_resized
-    )
+    pred_mask = model.predict(img_batch, verbose=0)[0, :, :, 0]
+
+    # ✅ Unpad then resize back to original
+    pred_cropped = pred_mask[pad_top:pad_top + new_h, pad_left:pad_left + new_w]
+    pred_original = cv2.resize(pred_cropped, (original_img.shape[1], original_img.shape[0]),
+                               interpolation=cv2.INTER_LINEAR)
+
+    corrosion_mask_resized = (pred_original > THRESHOLD).astype(np.uint8)
+
+    rust_mask, crack_mask = detect_rust_and_cracks(original_img, corrosion_mask_resized)
 
     crack_mask = (crack_mask > 0).astype(np.uint8) * 255
 
-    #currently black and white
     crack_overlay = original_img.copy()
     crack_overlay[crack_mask == 255] = [0, 255, 255]
 
@@ -240,7 +249,6 @@ def predict():
     return jsonify({
         "rust_pixels": int(np.sum(rust_mask)),
         "crack_pixels": int(np.sum(crack_mask)),
-
         "original_image": image_to_base64(original_img),
         "corrosion_mask": image_to_base64(corrosion_mask_resized * 255),
         "crack_overlay": image_to_base64(crack_overlay),
