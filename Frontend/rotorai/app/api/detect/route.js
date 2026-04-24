@@ -3,8 +3,8 @@ export async function POST(req) {
 
   const res = await fetch(process.env.NEXT_PUBLIC_BACKEND_URL + '/detect', {
     method: 'POST',
-    body: formData,
     headers: {
+      'Content-Type': 'application/json',
       'x-api-key': process.env.API_SECRET, // hidden
     },
   });
