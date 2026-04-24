@@ -38,6 +38,7 @@ def process_roi(roi_mask, img_rgb, current_boxed_img, current_face_mask, w_img):
     return detections
 
 def detect_frame(frame,model):
+    global frame_idx, last_results
     h_img, w_img = frame.shape[:2]
     img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     boxed_image = frame.copy()
@@ -50,21 +51,28 @@ def detect_frame(frame,model):
         cv2.rectangle(face_mask, (x, y), (x + w, y + h), 255, -1)
     face_mask_dilated = cv2.dilate(face_mask, kernel, iterations=3)
 
-    # YOLO detection
-    results = model.predict(frame, conf=0.4, imgsz=640, device="cpu", verbose=False)[0]
+    if frame_idx % 5 == 0:
+        # Predict on full resolution — no resize, no scaling needed
+        last_results = model.predict(frame, conf=0.4, imgsz=640, device="cpu", iou=0.4, verbose=False)
+
+    # # YOLO detection
+    # results = model.predict(frame, conf=0.4, imgsz=640, device="cpu", verbose=False)[0]
 
     detections = []
 
-    if results.boxes is not None and len(results.boxes) > 0:
-        for box in results.boxes.xyxy.cpu().numpy():
+    if last_results is not None and len(last_results[0].boxes) > 0:
+        r = last_results[0]
+        for i, box in enumerate(r.boxes.xyxy.cpu().numpy()):
             x1, y1, x2, y2 = map(int, box)
-            box_w, box_h = x2 - x1, y2 - y1
+            box_w = x2 - x1
+            box_h = y2 - y1
 
             if box_w > (w_img * 0.8) and box_h < (h_img * 0.1):
+                print(f"Skipping Box {i} (Likely Rope)")
                 continue
 
             box_mask = np.zeros((h_img, w_img), dtype=np.uint8)
             box_mask[y1:y2, x1:x2] = 255
             detections += process_roi(box_mask, img_rgb, boxed_image, face_mask_dilated, w_img)
-
+    frame_idx += 1
     return detections
