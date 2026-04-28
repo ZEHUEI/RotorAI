@@ -46,6 +46,7 @@ export const GaussianStore = {
       // Load and draw YOLO detection boxes
       const response = await fetch(
         '/models/clustered_detections_circle_best.json'
+        // '/models/clustered_detections_3.json'
       );
       const detections = await response.json();
 
