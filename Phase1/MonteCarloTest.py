@@ -196,7 +196,7 @@ def visualize_uncertainty(pred_stack):
 # ================= RUN =================
 if __name__ == "__main__":
     if not os.path.exists(TEST_IMAGE):
-        print("❌ Test image not found")
+        print("Test image not found")
         exit()
 
     results, pred_stack = monte_carlo_test(model, TEST_IMAGE, MC_RUNS)
