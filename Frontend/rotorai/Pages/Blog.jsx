@@ -7,82 +7,92 @@ import { useRouter } from 'next/navigation';
 const Data = [
   {
     id: 1,
-    title: 'Announcing RotorAI',
+    title: 'Project Initiation – RotorAI Concept',
     image: './blogimg/Blue.jpg',
-    text: 'Rotor AI is an Vision Learning Model that detects erosion where naked eye could not.',
-    date: '2 OCOTBER 2025',
+    text: 'Concept of an AI system for automated rust and defect detection.',
+    date: '15 SEPTEMBER 2025',
   },
   {
     id: 2,
-    title: 'Introducing Rust detection',
+    title: 'Prototype – Rust Detection (v0.1)',
     image: './blogimg/Silver.jpg',
-    text: 'Rust Detection is out and ready for testing.',
-    date: '9 NOVEMBER 2025',
+    text: 'First prototype for rust detection using deep learning.',
+    date: '9 OCTOBER 2025',
   },
   {
     id: 3,
-    title: 'Open Release of V1',
+    title: 'RotorAI v1 Release',
     image: './blogimg/Leviticus.png',
-    text: 'RotorAI v1 is out.',
-    date: '30 NOVEMBER 2025',
+    text: 'Initial release with basic image-based defect detection.',
+    date: '30 OCTOBER 2025',
   },
   {
     id: 4,
-    title: 'Annoucing V1.5',
+    title: 'v1.5 – Dataset Expansion',
     image: './blogimg/Deuteronomy.png',
-    text: 'Better Rust detection with DACL10k dataset but cracks cannot be detected.',
-    date: '16 DECEMBER 2025',
+    text: 'Improved rust detection; crack limitations identified.',
+    date: '16 NOVEMBER 2025',
   },
   {
     id: 5,
-    title: 'V1.5 Review and Future Vision',
+    title: 'Dataset Strategy Shift',
     image: './blogimg/Kings.png',
-    text: 'Scrapping DACL10k dataset and using 3 Roboflow dataset of corrosion.',
-    date: '25 DECEMBER 2026',
+    text: 'Switched datasets to improve generalisation.',
+    date: '25 NOVEMBER 2025',
   },
   {
     id: 6,
-    title: 'Annoucing V2',
+    title: 'RotorAI v2 – Dual Detection',
     image: './blogimg/Chronicles.png',
-    text: 'V2 is out with Corrosion detection and Cracks detection.',
-    date: '16 JANUARY 2026',
+    text: 'Introduced combined rust and crack detection.',
+    date: '10 DECEMBER 2025',
   },
   {
     id: 7,
-    title: 'V2 Review and Future Vision',
+    title: 'Real-Time Detection',
     image: './blogimg/Psalms.jpg',
-    text: 'TBA',
-    date: '23 JANUARY 2026',
+    text: 'Enabled real-time detection with YOLOv8.',
+    date: '5 JANUARY 2026',
   },
   {
     id: 8,
-    title: 'FINAL VERSION',
+    title: '3D Gaussian Splatting',
     image: './blogimg/Romans.png',
-    text: 'TBA',
-    date: 'DD MMOONNTTHH YEAR',
+    text: 'Added 3D spatial visualisation.',
+    date: '20 FEBRUARY 2026',
   },
   {
     id: 9,
-    title: 'FINAL REVIEW',
+    title: 'RaySplat Mapping',
     image: './blogimg/Thessalonians.jpg',
-    text: 'TBA',
-    date: 'DD MMOONNTTHH YEAR',
+    text: 'Mapped detections into 3D using RaySplat.',
+    date: '13 MARCH 2026',
   },
   {
     id: 10,
-    title: 'THE END',
+    title: 'Final System',
     image: '/blogimg/Genesis.png',
-    text: 'Sed ut perspiciatis estiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur?',
-    date: 'DD MMOONNTTHH YEAR',
+    text: 'Completed full AI, real-time, and 3D system.',
+    date: '29 APRIL 2026',
   },
 ];
+
+const ButtonHelper = ({}) => {
+  return (
+    <>
+      <div className="border-2 rounded-3xl w-fit px-2 font-Inter text-sm transition-all group-hover:bg-white group-hover:text-black mt-2">
+        <div className="p-2">OPEN</div>
+      </div>
+    </>
+  );
+};
 
 const BigFeaturePost = ({ post }) => {
   if (!post) return null;
   const router = useRouter();
   return (
     <div
-      className="w-full h-[300px] border-0 border-amber-300 hover:cursor-pointer transition-all hover:scale-[1.02] hover:shadow-xl"
+      className="group w-full h-[300px] border-0 border-amber-300 hover:cursor-pointer transition-all hover:scale-[1.02] hover:shadow-xl"
       onClick={() => router.push(`/blog/posts?id=10`)}
     >
       {/*3 columns using flex */}
@@ -92,9 +102,12 @@ const BigFeaturePost = ({ post }) => {
             {post.date || '-'}
           </div>
         </div>
-        <div className="flex flex-col items-start justify-starts text-lg border-0 border-amber-300 px-15 mr-20 w-155 max-w-full">
+        <div className="relative flex flex-col items-start justify-starts text-lg border-0 border-amber-300 px-15 mr-20 w-155 max-w-full">
           <div className="text-xl">{post.title}</div>
           <div className="text-gray-300 text-base mt-10">{post.text}</div>
+          <div className=" absolute bottom-4 right-4">
+            <ButtonHelper />
+          </div>
         </div>
         <div className="flex items-center justify-center border-0 border-amber-300 h-full">
           <div className="h-full w-full flex items-center justify-center">
