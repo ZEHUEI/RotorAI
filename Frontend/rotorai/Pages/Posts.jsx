@@ -79,7 +79,7 @@ const data = [
   {
     id: 7,
     title: 'Real-Time Video Detection',
-    content: '/sexy/sexy3.mp4',
+    content: '/sexy3.mp4',
     text: 'Enabled real-time detection using video streams.',
     text1:
       'The system was extended to support real-time video processing using OpenCV for frame extraction and YOLOv8 for inference. GPU acceleration was utilised to ensure efficient computation, enabling stable frame rates during live detection. This marked a key transition from static analysis to continuous inspection workflows.',
