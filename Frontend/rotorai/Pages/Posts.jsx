@@ -79,7 +79,7 @@ const data = [
   {
     id: 7,
     title: 'Real-Time Video Detection',
-    content: 'https://youtu.be/aKO9-549Ztw',
+    content: '/sexy/sexy7.png',
     text: 'Enabled real-time detection using video streams.',
     text1:
       'The system was extended to support real-time video processing using OpenCV for frame extraction and YOLOv8 for inference. GPU acceleration was utilised to ensure efficient computation, enabling stable frame rates during live detection. This marked a key transition from static analysis to continuous inspection workflows.',
@@ -91,7 +91,7 @@ const data = [
   {
     id: 8,
     title: '3D Gaussian Splatting Integration',
-    content: './blogimg/Romans.png',
+    content: '/sexy/sexy8.png',
     text: 'Added 3D reconstruction for spatial visualisation.',
     text1:
       'To enhance interpretability, 3D Gaussian Splatting was integrated to reconstruct inspected environments from captured images. This allowed detected defects to be visualised within a spatial context, enabling users to better understand their location and distribution on complex surfaces.',
@@ -103,7 +103,7 @@ const data = [
   {
     id: 9,
     title: 'RaySplat Spatial Mapping',
-    content: './blogimg/Thessalonians.jpg',
+    content: '/sexy/sexy9.png',
     text: 'Mapped 2D detections into 3D space using RaySplat.',
     text1:
       'RaySplat-based projection was implemented to map 2D detections into 3D space using ray-sphere intersection. This approach improved alignment on curved surfaces and allowed multiple detection views to be merged into a consistent spatial representation, significantly enhancing accuracy in 3D mapping.',
@@ -191,17 +191,6 @@ const BlogIndividual = () => {
                   </a>
                 )}
               </div>
-            </div>
-          ) : post.content.includes('youtu') ? (
-            <div className="mt-10 mb-10 max-w-3xl w-full mx-auto shadow-lg rounded-lg overflow-hidden aspect-video">
-              <iframe
-                src={`https://www.youtube-nocookie.com/embed/${post.content.includes('youtu.be/') ? post.content.split('youtu.be/')[1] : post.content.split('v=')[1]}`}
-                title={post.title}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                referrerPolicy="strict-origin-when-cross-origin"
-                className="w-full h-full"
-              />
             </div>
           ) : post.content.endsWith('.mp4') ? (
             <video
