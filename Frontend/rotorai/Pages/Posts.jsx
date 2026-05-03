@@ -79,7 +79,7 @@ const data = [
   {
     id: 7,
     title: 'Real-Time Video Detection',
-    content: '/sexy3.mp4',
+    content: 'https://youtu.be/aKO9-549Ztw',
     text: 'Enabled real-time detection using video streams.',
     text1:
       'The system was extended to support real-time video processing using OpenCV for frame extraction and YOLOv8 for inference. GPU acceleration was utilised to ensure efficient computation, enabling stable frame rates during live detection. This marked a key transition from static analysis to continuous inspection workflows.',
@@ -191,6 +191,17 @@ const BlogIndividual = () => {
                   </a>
                 )}
               </div>
+            </div>
+          ) : post.content.includes('youtu') ? (
+            <div className="mt-10 mb-10 max-w-3xl w-full mx-auto shadow-lg rounded-lg overflow-hidden aspect-video">
+              <iframe
+                src={`https://www.youtube-nocookie.com/embed/${post.content.includes('youtu.be/') ? post.content.split('youtu.be/')[1] : post.content.split('v=')[1]}`}
+                title={post.title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+                className="w-full h-full"
+              />
             </div>
           ) : post.content.endsWith('.mp4') ? (
             <video

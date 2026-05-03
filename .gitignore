@@ -11,3 +11,4 @@ backend/yolo_corrosion
 *.ckpt
 *.onnx
 .env
+*.mp4
