@@ -3,7 +3,22 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/(.*)',
+        // Strict headers only for 3DGS viewer
+        source: '/gaussian(.*)',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+        ],
+      },
+      {
+        // Relaxed headers for blog posts with YouTube
+        source: '/blog(.*)',
         headers: [
           {
             key: 'Cross-Origin-Opener-Policy',
