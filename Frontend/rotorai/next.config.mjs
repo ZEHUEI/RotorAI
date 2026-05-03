@@ -13,6 +13,11 @@ const nextConfig = {
             key: 'Cross-Origin-Embedder-Policy',
             value: 'require-corp',
           },
+          {
+            key: 'Content-Security-Policy',
+            value:
+              "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com;",
+          },
         ],
       },
     ];
