@@ -11,7 +11,7 @@ const nextConfig = {
           },
           {
             key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
+            value: 'unsafe-none',
           },
           {
             key: 'Content-Security-Policy',
