@@ -17,13 +17,9 @@ const nextConfig = {
         ],
       },
       {
-        // Relaxed headers for blog posts with YouTube
-        source: '/blog(.*)',
+        // Everything else — relaxed
+        source: '/((?!gaussian).*)',
         headers: [
-          {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
-          },
           {
             key: 'Cross-Origin-Embedder-Policy',
             value: 'unsafe-none',
