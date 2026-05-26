@@ -115,7 +115,7 @@ const YOLO = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen-full bg-black mt-10">
+    <div className="flex flex-col items-center justify-center h-screen-full mt-10">
       <div className="relative w-[1200px] rounded-xl overflow-hidden shadow-2xl shadow-white/10 ring-2 ring-white/10">
         <video
           ref={videoRef}

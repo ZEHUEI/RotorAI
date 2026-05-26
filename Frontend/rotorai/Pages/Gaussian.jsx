@@ -32,7 +32,7 @@ const Gaussian = () => {
   }, []);
 
   return (
-    <div className="relative flex flex-col overflow-hidden items-center justify-center min-h-screen bg-black p-4">
+    <div className="relative flex flex-col overflow-hidden items-center justify-center min-h-screen p-4">
       {/* THE BOX */}
 
       {/*controls */}
