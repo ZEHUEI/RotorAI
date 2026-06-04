@@ -12,3 +12,5 @@ backend/yolo_corrosion
 *.onnx
 .env
 *.mp4
+Outcomes/Predictions/*.mp4
+Outcomes/Input/*.mp4
