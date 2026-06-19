@@ -145,34 +145,10 @@ Detection history, defect statistics, and annotated 3D models in one interactive
 
 ---
 
-## Project Structure
-
-```
-RotorAI/
-├── backend/
-│   ├── app.py
-│   ├── routes/
-│   └── models/
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   └── components/
-├── ai/
-│   ├── yolo/
-│   ├── training/
-│   └── inference/
-├── gaussian-splatting/
-├── datasets/
-├── docs/
-└── README.md
-```
-
----
-
 <div align="center">
 
 **🔩 RotorAI — Automating Industrial Motor Inspection with AI**
 
-⭐ Star this repository if you find it useful.
+⭐ Star this repository if you find it useful. ❤️
 
 </div>
