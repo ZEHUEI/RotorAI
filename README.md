@@ -93,7 +93,7 @@ Detection history, defect statistics, and annotated 3D models in one interactive
 
 | Technology | Purpose |
 |---|---|
-| Python 3.11+ | Core language |
+| Python 3.10 | Core language |
 | YOLOv11 | Object detection |
 | OpenCV | Video processing |
 | TensorFlow | Classification |
