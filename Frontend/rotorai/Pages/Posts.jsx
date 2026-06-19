@@ -123,7 +123,7 @@ const data = [
     text2:
       'A key takeaway from the project is the importance of false negative management in safety-critical applications. Throughout development, missed detections posed a greater risk than false positives — an undetected crack is far more dangerous than a flagged clean surface. Future work includes real-time 3D reconstruction, user authentication with detection history, and expanding the defect taxonomy beyond rust and cracks to support broader industrial inspection use cases.',
     date: '29 APRIL 2026',
-    mygithub: 'https://github.com/ZEHUEI',
+    mygithub: 'https://github.com/ZEHUEI/ROTORAI',
     myurl: 'https://www.linkedin.com/in/ze-huei-lim-310a162b5/',
     hisurl: 'https://www.linkedin.com/in/van-mien-7693b489/',
   },

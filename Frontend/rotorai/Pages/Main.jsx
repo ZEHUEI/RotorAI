@@ -104,6 +104,9 @@ const Main = () => {
   return (
     <div className="flex flex-col items-center justify-center font-Inter mt-10">
       <div className="w-full h-[600px]">
+        <div className="font-AT text-lg flex items-center justify-center text-red-600 mb-5">
+          GCP SERVICE ENDED CHECK MY LAST BLOG FOR GITHUB REPO
+        </div>
         <motion.div
           onClick={
             !isLocked && images.length < MAX_IMAGES ? handleClick : undefined
@@ -157,7 +160,7 @@ const Main = () => {
         </motion.div>
       </div>
 
-      <div className="mt-8"></div>
+      <div className="mt-15"></div>
       <Button onClick={handleUpload} disabled={isLocked || isUploading} />
 
       {result && (
