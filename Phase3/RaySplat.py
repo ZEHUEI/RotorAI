@@ -3,6 +3,109 @@ import numpy as np
 import os
 from sklearn.cluster import DBSCAN
 
+"""
+use gamma0.5, alpha =0.1
+"""
+#new rasy splat  built
+# --- CONFIGURATION ---
+# TRANSFORMS_PATH = "nerfstudio/data/final/transforms.json"
+# YOLO_JSON_PATH = "yolo_detections_batch.json"
+# OUTPUT_PATH = "clustered_detections_new.json"
+#
+# # MOTOR GEOMETRY (Adjust these to fit your specific Splat)
+# MOTOR_CENTER = np.array([0.45, 0.2, -0.35])
+# # Radius is the distance from the center to the surface of the motor.
+# # If your motor is roughly 40cm wide, use 0.2.
+# MOTOR_RADIUS = 0.22
+# CRACK_DEPTH_BIAS = 0.03
+#
+# def run_mapping_pipeline():
+#     if not os.path.exists(TRANSFORMS_PATH):
+#         print(f"Error: {TRANSFORMS_PATH} not found.")
+#         return
+#
+#     with open(TRANSFORMS_PATH, 'r') as f:
+#         config = json.load(f)
+#     with open(YOLO_JSON_PATH, 'r') as f:
+#         detections = json.load(f)
+#
+#     scale_factor = config.get('scale_factor', 1.0)
+#     frame_list = config.get('frames', config.get('images', []))
+#     frames = {os.path.basename(f.get('file_path', f.get('path', ''))): f for f in frame_list}
+#
+#     rust_points = []
+#     crack_points = []
+#
+#     # --- PHASE 1: PROJECTION & TYPE SPLITTING ---
+#     for det in detections:
+#         img_name = det['filename']
+#         if img_name not in frames: continue
+#
+#         c2w = np.array(frames[img_name]['transform_matrix'])
+#         cam_origin = c2w[:3, 3]
+#
+#         vec_to_center = MOTOR_CENTER - cam_origin
+#         dist_to_center = np.linalg.norm(vec_to_center)
+#         direction_to_center = vec_to_center / dist_to_center
+#
+#         # APPLY SPECIFIC RADIUS FOR CRACKS
+#         is_crack = "rust" not in det['type'].lower()
+#         # Subtraction here makes the "surface" smaller, pulling points IN
+#         effective_radius = MOTOR_RADIUS - CRACK_DEPTH_BIAS if is_crack else MOTOR_RADIUS
+#
+#         snap_dist = dist_to_center - effective_radius
+#         world_point = (cam_origin + (direction_to_center * snap_dist)) * scale_factor
+#
+#         point_data = {"pos": world_point, "type": det['type'].lower(), "conf": det['conf']}
+#
+#         if is_crack:
+#             crack_points.append(point_data)
+#         else:
+#             rust_points.append(point_data)
+#
+#     final_objects = []
+#
+#     # --- PHASE 2: CLUSTER RUST (MERGE GREEN) ---
+#     if rust_points:
+#         coords = np.array([p['pos'] for p in rust_points])
+#         # eps=0.1 (10cm). Increase this if green boxes aren't merging enough.
+#         clustering = DBSCAN(eps=0.12, min_samples=2).fit(coords)
+#
+#         for label in set(clustering.labels_):
+#             if label == -1: continue
+#             indices = [i for i, l in enumerate(clustering.labels_) if l == label]
+#             cluster_coords = coords[indices]
+#
+#             center = np.mean(cluster_coords, axis=0)
+#             size = np.max(cluster_coords, axis=0) - np.min(cluster_coords, axis=0)
+#
+#             final_objects.append({
+#                 "type": "rust",
+#                 "position": center.tolist(),
+#                 "size": size.tolist(),
+#             })
+#
+#     # --- PHASE 3: SOLO CRACKS (CYAN BOXES) ---
+#     for i, crack in enumerate(crack_points):
+#         # We don't cluster these; each one gets its own box
+#         final_objects.append({
+#             "type": "crack",
+#             "position": crack['pos'].tolist(),
+#             "size": [0.03, 0.03, 0.03],  # Small, sharp boxes for cracks
+#             "count": 1
+#         })
+#
+#     with open(OUTPUT_PATH, 'w') as f:
+#         json.dump(final_objects, f, indent=4)
+#
+#     print(f"Done! Created {len(final_objects)} total objects.")
+#
+#
+# if __name__ == "__main__":
+#     run_mapping_pipeline()
+
+
+#main
 # --- CONFIGURATION ---
 TRANSFORMS_PATH = "nerfstudio/data/final/transforms.json"
 YOLO_JSON_PATH = "yolo_detections_batch.json"
@@ -25,6 +128,7 @@ def run_mapping_pipeline():
     with open(YOLO_JSON_PATH, 'r') as f:
         detections = json.load(f)
 
+    #scale down
     scale_factor = config.get('scale_factor', 1.0)
     frame_list = config.get('frames', config.get('images', []))
     frames = {os.path.basename(f.get('file_path', f.get('path', ''))): f for f in frame_list}
@@ -64,7 +168,7 @@ def run_mapping_pipeline():
     # --- PHASE 2: CLUSTER RUST (MERGE GREEN) ---
     if rust_points:
         coords = np.array([p['pos'] for p in rust_points])
-        # eps=0.1 (10cm). Increase this if green boxes aren't merging enough.
+        # eps=0.1 (10cm). Increase this if green boxes aren't merging enough. lower to 0.7
         clustering = DBSCAN(eps=0.12, min_samples=2).fit(coords)
 
         for label in set(clustering.labels_):

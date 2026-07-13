@@ -98,6 +98,9 @@ dice = DiceLoss()
 focal = BinaryFocalLoss(gamma=2.0,alpha=0.25)
 bce = tf.keras.losses.BinaryCrossentropy()
 
+"""
+0.65 to 0.75
+"""
 def mean_iou_custom(y_true, y_pred, smooth=1e-6):
     y_pred = tf.cast(y_pred > 0.65, tf.float32)
     intersection = tf.reduce_sum(y_true * y_pred,axis=[1,2,3])
@@ -114,7 +117,7 @@ def weighted_loss(y_true, y_pred):
     return (10.0 * dice(y_true, y_pred)) + (5.0 * focal(y_true, y_pred)) + (8.0 * bce_loss)
 
 #-----------------------------------------------------------------
-#Augment
+#Augment cur: 0.1, 0.1 -> 0.25,0.25
 #-----------------------------------------------------------------
 geometric_augment = tf.keras.Sequential([
     layers.RandomTranslation(height_factor=0.1, width_factor=0.1),
