@@ -6,7 +6,9 @@
 
 Detect **rust**, **cracks**, **corrosion**, and surface defects from video footage using Computer Vision and Deep Learning.
 
-AI Model Here: ![RotorAI Model](https://huggingface.co/MeNoobHeHe/RotorAI/resolve/main/your-image.png)
+AI MODEL HERE ^^^
+
+[![Hugging Face](https://img.shields.io/badge/Hugging%20Face-Model-yellow?logo=huggingface)](https://huggingface.co/MeNoobHeHe/RotorAI)
 
 <br/>
 
