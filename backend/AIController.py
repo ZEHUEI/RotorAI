@@ -209,7 +209,7 @@ def predict():
     image = Image.open(file).convert("RGB")
     original_img = np.array(image)
 
-    # ✅ Aspect-ratio preserving resize + padding
+    # Aspect-ratio preserving resize + padding
     h, w = original_img.shape[:2]
     scale = min(TARGET_SIZE[0] / h, TARGET_SIZE[1] / w)
     new_h = min(int(np.floor(h * scale)), TARGET_SIZE[0])
@@ -222,14 +222,14 @@ def predict():
     pad_left = pad_w // 2
     img_padded = np.pad(img_resized, [[pad_top, pad_h - pad_top], [pad_left, pad_w - pad_left], [0, 0]])
 
-    # ✅ CLAHE + preprocess
+    # CLAHE + preprocess
     img_clahe = apply_clahe(img_padded)
     img_preprocessed = preprocess_input(img_clahe.astype(np.float32))
     img_batch = np.expand_dims(img_preprocessed, axis=0)
 
     pred_mask = model.predict(img_batch, verbose=0)[0, :, :, 0]
 
-    # ✅ Unpad then resize back to original
+    # Unpad then resize back to original
     pred_cropped = pred_mask[pad_top:pad_top + new_h, pad_left:pad_left + new_w]
     pred_original = cv2.resize(pred_cropped, (original_img.shape[1], original_img.shape[0]),
                                interpolation=cv2.INTER_LINEAR)
