@@ -51,7 +51,7 @@ Instead of manually reviewing inspection footage, engineers can upload a video o
 
 ```
 Video Input  ──►  Frame Extraction  ──►  YOLO Detection  ──►  Classification  ──►  3D Splatting  ──►  Dashboard
- Camera/Upload       OpenCV                YOLOv11             TF / PyTorch       Gaussian            Reports
+ Camera/Upload       OpenCV                YOLOv8             TF / PyTorch       Gaussian            Reports
 ```
 
 ---
@@ -98,7 +98,7 @@ Detection history, defect statistics, and annotated 3D models in one interactive
 | Technology | Purpose |
 |---|---|
 | Python 3.10 | Core language |
-| YOLOv11 | Object detection |
+| YOLOv8 | Object detection |
 | OpenCV | Video processing |
 | TensorFlow | Classification |
 | PyTorch | Deep learning |
