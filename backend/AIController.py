@@ -46,11 +46,12 @@ from ultralytics import YOLO
 from Phase1.PostProcess import detect_rust_and_cracks
 from Phase2.YOLOapi import detect_frame
 
+if not API_KEY:
+    raise RuntimeError("API_SECRET is required")
+
 def check_api_key():
     client_key = request.headers.get("x-api-key")
-    if client_key != API_KEY:
-        return False
-    return True
+    return bool(client_key) and client_key == API_KEY
 
 #-- google cloud path
 yolo_model = YOLO(YOLO_MODEL_PATH)
@@ -247,8 +248,8 @@ def predict():
     rust_overlay[rust_mask > 0] = [0, 255, 0]
 
     return jsonify({
-        "rust_pixels": int(np.sum(rust_mask)),
-        "crack_pixels": int(np.sum(crack_mask)),
+        "rust_pixels": int(np.count_nonzero(rust_mask)),
+        "crack_pixels": int(np.count_nonzero(crack_mask)),
         "original_image": image_to_base64(original_img),
         "corrosion_mask": image_to_base64(corrosion_mask_resized * 255),
         "crack_overlay": image_to_base64(crack_overlay),
