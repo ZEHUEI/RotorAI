@@ -15,3 +15,7 @@ backend/yolo_corrosion
 Outcomes/
 /Outcomes/Input
 *.mp4
+*.mp4
+*.xml
+*.gif
+*.pyc
