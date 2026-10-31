@@ -19,3 +19,5 @@ Outcomes/
 *.xml
 *.gif
 *.pyc
+/.idea
+/Outcomes
